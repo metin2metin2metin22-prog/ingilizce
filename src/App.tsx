@@ -4,11 +4,13 @@ import { DIALOGUE_SCENARIOS } from './data/dialogues';
 import { SurvivalHUD } from './components/SurvivalHUD';
 import { SurvivalRoadmap } from './components/SurvivalRoadmap';
 import { InteractiveDialogue } from './components/InteractiveDialogue';
+import { FlashcardsView } from './components/FlashcardsView';
 import { PassportModal } from './components/PassportModal';
 import { DeportedModal } from './components/DeportedModal';
+import { sounds } from './utils/audio';
 
-const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v6';
-const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v6';
+const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v7';
+const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v7';
 
 const INITIAL_PASSPORT: PlayerPassport = {
   travelerName: 'Yolcu (Explorer)',
@@ -20,6 +22,8 @@ const INITIAL_PASSPORT: PlayerPassport = {
 };
 
 export function App() {
+  const [activeView, setActiveView] = useState<'DIALOGUE' | 'FLASHCARDS'>('DIALOGUE');
+
   const [passport, setPassport] = useState<PlayerPassport>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_PASSPORT);
@@ -38,7 +42,6 @@ export function App() {
       const saved = localStorage.getItem(STORAGE_KEY_SCENARIOS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Validate that schema is fresh
         if (Array.isArray(parsed) && parsed[0]?.turns?.[0]?.sentenceWithBlank) {
           return parsed;
         }
@@ -50,7 +53,7 @@ export function App() {
   const [isPassportOpen, setIsPassportOpen] = useState<boolean>(false);
   const [isDeportedOpen, setIsDeportedOpen] = useState<boolean>(false);
 
-  // Active scenario with defensive fallback
+  // Active scenario
   const safeScenarios = scenarios.length > 0 ? scenarios : DIALOGUE_SCENARIOS;
   const currentScenario = safeScenarios[passport.currentScenarioIndex] || safeScenarios[0];
 
@@ -81,16 +84,32 @@ export function App() {
       prev.map((sc) => (sc.id === scenarioId ? { ...sc, stamped: true } : sc))
     );
 
-    const nextIndex = Math.min(safeScenarios.length - 1, passport.currentScenarioIndex + 1);
-
     setPassport((prev) => ({
       ...prev,
       cashPounds: prev.cashPounds + 70,
-      stampsCount: prev.stampsCount + 1,
-      warningsLeft: 3, // Reset warnings on success
-      currentScenarioIndex: nextIndex,
+      stampsCount: Math.min(safeScenarios.length, prev.stampsCount + 1),
+      warningsLeft: 3, // Full reset upon clearance
       masteredWords: Array.from(new Set([...prev.masteredWords, ...wordIds])),
     }));
+  };
+
+  // Advance to next scenario
+  const handleNextScenario = () => {
+    const nextIndex = (passport.currentScenarioIndex + 1) % safeScenarios.length;
+    setPassport((prev) => ({
+      ...prev,
+      currentScenarioIndex: nextIndex,
+      warningsLeft: 3,
+    }));
+  };
+
+  // Jump from Flashcards to specific Scenario
+  const handleStartScenarioForWord = (scenarioIdx: number) => {
+    setPassport((prev) => ({
+      ...prev,
+      currentScenarioIndex: scenarioIdx,
+    }));
+    setActiveView('DIALOGUE');
   };
 
   // Deported / Detention Room
@@ -115,6 +134,8 @@ export function App() {
         passport={passport}
         currentLevel={currentScenario.level}
         currentLocation={currentScenario.location}
+        activeView={activeView}
+        onChangeView={setActiveView}
         onOpenPassport={() => setIsPassportOpen(true)}
       />
 
@@ -127,18 +148,31 @@ export function App() {
           currentIndex={passport.currentScenarioIndex}
           onSelectScenario={(idx) => {
             setPassport((prev) => ({ ...prev, currentScenarioIndex: idx }));
+            setActiveView('DIALOGUE');
           }}
         />
 
-        {/* The Core Interactive Dialogue Component */}
-        <InteractiveDialogue
-          key={currentScenario.id}
-          scenario={currentScenario}
-          warningsLeft={passport.warningsLeft}
-          onLoseWarning={handleLoseWarning}
-          onScenarioCompleted={handleScenarioCompleted}
-          onDeported={handleDeported}
-        />
+        {/* View 1: Living Interactive Dialogue */}
+        {activeView === 'DIALOGUE' && (
+          <InteractiveDialogue
+            key={`${currentScenario.id}-${passport.currentScenarioIndex}`}
+            scenario={currentScenario}
+            warningsLeft={passport.warningsLeft}
+            onLoseWarning={handleLoseWarning}
+            onScenarioCompleted={handleScenarioCompleted}
+            onDeported={handleDeported}
+            onNextScenario={handleNextScenario}
+          />
+        )}
+
+        {/* View 2: Dedicated A1-A2-B1-B2 Flashcards Library */}
+        {activeView === 'FLASHCARDS' && (
+          <FlashcardsView
+            scenarios={safeScenarios}
+            masteredWords={passport.masteredWords}
+            onStartScenarioForWord={handleStartScenarioForWord}
+          />
+        )}
 
       </main>
 

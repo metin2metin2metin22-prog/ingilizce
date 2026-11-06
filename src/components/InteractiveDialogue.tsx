@@ -5,7 +5,7 @@ import {
   Lightbulb, Stamp, ArrowRight, RotateCcw, ShieldAlert, Award, Zap, HelpCircle, X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { sounds, speakEnglish } from '../utils/audio';
+import { sounds, speakEnglish, speakEnglishSlow } from '../utils/audio';
 
 interface InteractiveDialogueProps {
   scenario: DialogueScenario;
@@ -13,6 +13,7 @@ interface InteractiveDialogueProps {
   onLoseWarning: () => void;
   onScenarioCompleted: (scenarioId: string, wordIds: string[]) => void;
   onDeported: () => void;
+  onNextScenario: () => void;
 }
 
 interface ChatMessage {
@@ -31,6 +32,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   onLoseWarning,
   onScenarioCompleted,
   onDeported,
+  onNextScenario,
 }) => {
   // Phase: 'DIALOGUE' (Conversational active recall) -> 'RETENTION_BLITZ' (5-word memory test) -> 'COMPLETED' (Passport Stamp Slam)
   const [phase, setPhase] = useState<'DIALOGUE' | 'RETENTION_BLITZ' | 'COMPLETED'>('DIALOGUE');
@@ -298,13 +300,22 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                     <p className="text-sm sm:text-base font-semibold leading-relaxed">
                       {msg.textEn}
                     </p>
-                    <button
-                      onClick={() => speakEnglish(msg.textEn)}
-                      className="p-1.5 rounded-lg bg-black/20 hover:bg-black/40 text-slate-300 hover:text-white transition-all cursor-pointer flex-shrink-0"
-                      title="Seslendir"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => speakEnglish(msg.textEn)}
+                        className="p-1.5 rounded-lg bg-black/20 hover:bg-black/40 text-slate-300 hover:text-white transition-all cursor-pointer flex-shrink-0"
+                        title="Normal Seslendir"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => speakEnglishSlow(msg.textEn)}
+                        className="p-1.5 rounded-lg bg-black/20 hover:bg-black/40 text-slate-300 hover:text-amber-300 transition-all cursor-pointer flex-shrink-0 text-xs"
+                        title="Yavaş Seslendir (Tane Tane)"
+                      >
+                        🐢
+                      </button>
+                    </div>
                   </div>
 
                   {msg.textTr && (
@@ -530,11 +541,16 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
             </div>
           </div>
 
+          {/* ADVANCE TO NEXT SCENARIO BUTTON */}
           <button
-            onClick={() => sounds.playClick()}
-            className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 transition-all cursor-pointer active:scale-95"
+            onClick={() => {
+              sounds.playAirportChime();
+              onNextScenario();
+            }}
+            className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 transition-all cursor-pointer active:scale-95 flex items-center gap-2"
           >
-            Sıradaki Londra Mekanına İlerle ✈️
+            <span>Sıradaki Londra Mekanına İlerle</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -566,8 +582,16 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                 <button
                   onClick={() => speakEnglish(inspectWord.word)}
                   className="p-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
+                  title="Normal Seslendir"
                 >
                   <Volume2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => speakEnglishSlow(inspectWord.word)}
+                  className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white cursor-pointer text-xs"
+                  title="Yavaş Seslendir (Tane Tane)"
+                >
+                  🐢
                 </button>
               </div>
               <p className="text-xs text-slate-400 font-mono">{inspectWord.phonetic}</p>

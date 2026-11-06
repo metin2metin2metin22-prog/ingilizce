@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PlayerPassport, Level } from '../types';
-import { Plane, AlertTriangle, ShieldCheck, Banknote, BookOpen, Stamp } from 'lucide-react';
+import { 
+  Plane, AlertTriangle, Banknote, BookOpen, Stamp, 
+  Volume2, VolumeX, Layers, MessageSquare 
+} from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface SurvivalHUDProps {
   passport: PlayerPassport;
   currentLevel: Level;
   currentLocation: string;
+  activeView: 'DIALOGUE' | 'FLASHCARDS';
+  onChangeView: (view: 'DIALOGUE' | 'FLASHCARDS') => void;
   onOpenPassport: () => void;
 }
 
@@ -14,8 +19,12 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
   passport,
   currentLevel,
   currentLocation,
+  activeView,
+  onChangeView,
   onOpenPassport,
 }) => {
+  const [isMuted, setIsMuted] = useState<boolean>(sounds.muted);
+
   const levelTags: Record<Level, { label: string; color: string }> = {
     A1: { label: 'A1 Giriş Vizesi', color: 'border-emerald-500/40 text-emerald-400' },
     A2: { label: 'A2 Şehir İzni', color: 'border-cyan-500/40 text-cyan-400' },
@@ -24,6 +33,11 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
   };
 
   const tag = levelTags[currentLevel] || levelTags.A1;
+
+  const handleToggleMute = () => {
+    const next = sounds.toggleMute();
+    setIsMuted(next);
+  };
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/90 border-b border-slate-800/80 px-4 sm:px-6 py-3.5">
@@ -52,11 +66,44 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
           </div>
         </div>
 
+        {/* View Mode Switcher: Dialogue vs Flashcards */}
+        <div className="flex items-center bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onChangeView('DIALOGUE');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              activeView === 'DIALOGUE'
+                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Canlı Diyalog</span>
+          </button>
+
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onChangeView('FLASHCARDS');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              activeView === 'FLASHCARDS'
+                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Kelime Kartları (A1-B2)</span>
+          </button>
+        </div>
+
         {/* Vital Survival Stats */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Warnings Left (Can) */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-bold" title="Polis / Görevli Uyarı Hakkı (3 Hata = Sorgu Odası!)">
+          {/* Warnings Left */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-bold" title="Memur Uyarı Hakkı">
             <AlertTriangle className={`w-4 h-4 ${passport.warningsLeft <= 1 ? 'text-rose-500 animate-bounce' : 'text-amber-400'}`} />
             <span className="text-slate-300">Uyarı:</span>
             <span className={`font-mono ${passport.warningsLeft <= 1 ? 'text-rose-400' : 'text-amber-300'}`}>
@@ -70,11 +117,14 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
             <span>£{passport.cashPounds}</span>
           </div>
 
-          {/* Stamped Visas */}
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-bold">
-            <Stamp className="w-4 h-4 text-purple-400" />
-            <span>{passport.stampsCount}/4 Vize Damgası</span>
-          </div>
+          {/* Audio Mute/Unmute toggle */}
+          <button
+            onClick={handleToggleMute}
+            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            title={isMuted ? 'Sesleri Aç' : 'Sesleri Kapat'}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-slate-300" />}
+          </button>
 
           {/* Passport & Learned Words Book */}
           <button
@@ -85,7 +135,7 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white text-xs sm:text-sm font-bold transition-all shadow-md shadow-sky-600/25 cursor-pointer"
           >
             <BookOpen className="w-4 h-4" />
-            <span className="hidden sm:inline">Pasaport & Kelimeler</span>
+            <span className="hidden sm:inline">Pasaport</span>
             <span className="px-1.5 py-0.2 rounded-md bg-sky-800 text-[11px] ml-0.5">
               {passport.masteredWords.length}
             </span>

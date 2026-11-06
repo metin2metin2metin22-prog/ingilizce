@@ -1,10 +1,11 @@
-// Audio Engine: Airport chimes, Passport stamps, dialogue sounds
+// Audio Engine: Airport chimes, Passport stamps, dialogue sounds & Speech
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
+  public muted: boolean = false;
 
   private getContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === 'undefined' || this.muted) return null;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
@@ -15,6 +16,11 @@ class SoundEngine {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  toggleMute(): boolean {
+    this.muted = !this.muted;
+    return this.muted;
   }
 
   playClick() {
@@ -40,7 +46,7 @@ class SoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      const notes = [659.25, 523.25]; // E5 -> C5 airport chime
+      const notes = [659.25, 523.25]; // E5 -> C5
       notes.forEach((freq, idx) => {
         const time = ctx.currentTime + idx * 0.28;
         const osc = ctx.createOscillator();
@@ -69,15 +75,15 @@ class SoundEngine {
       const gain = ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(120, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.14);
 
       gain.gain.setValueAtTime(0.4, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.14);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.12);
+      osc.stop(ctx.currentTime + 0.14);
     } catch {}
   }
 
@@ -125,22 +131,17 @@ class SoundEngine {
       osc.stop(ctx.currentTime + 0.28);
     } catch {}
   }
-
-  playVictory() {
-    this.playPassportStamp();
-    this.playAirportChime();
-  }
 }
 
 export const sounds = new SoundEngine();
 
-export function speakEnglish(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+export function speakEnglish(text: string, rate: number = 0.88) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || sounds.muted) return;
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-GB'; // British English for London immersion!
-  utterance.rate = 0.88;
+  utterance.lang = 'en-GB';
+  utterance.rate = rate;
   utterance.pitch = 1.0;
 
   const voices = window.speechSynthesis.getVoices();
@@ -150,4 +151,8 @@ export function speakEnglish(text: string) {
     utterance.voice = enGbVoice;
   }
   window.speechSynthesis.speak(utterance);
+}
+
+export function speakEnglishSlow(text: string) {
+  speakEnglish(text, 0.6);
 }
