@@ -1,8 +1,11 @@
-// Audio Engine: Airport chimes, Passport stamps, dialogue sounds, Combos, Heartbeats & Web Speech
+// Audio Engine: Airport chimes, Passport stamps, dialogue sounds, Combos, Heartbeats, Ambience & Web Speech
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
   public muted: boolean = false;
+  private ambientGain: GainNode | null = null;
+  private ambientOsc: OscillatorNode | null = null;
+  public isAmbiencePlaying: boolean = false;
 
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined' || this.muted) return null;
@@ -20,6 +23,9 @@ class SoundEngine {
 
   toggleMute(): boolean {
     this.muted = !this.muted;
+    if (this.muted && this.isAmbiencePlaying) {
+      this.stopAmbience();
+    }
     return this.muted;
   }
 
@@ -229,6 +235,58 @@ class SoundEngine {
         osc.stop(time + 0.4);
       });
     } catch {}
+  }
+
+  // Soft London Ambient Noise (Terminal Murmur & Rain atmosphere)
+  startAmbience() {
+    const ctx = this.getContext();
+    if (!ctx || this.isAmbiencePlaying) return;
+    try {
+      const bufferSize = ctx.sampleRate * 2;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const whiteNoise = ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(350, ctx.currentTime);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+
+      whiteNoise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      whiteNoise.start();
+      this.ambientGain = gain;
+      this.isAmbiencePlaying = true;
+    } catch {}
+  }
+
+  stopAmbience() {
+    if (this.ambientGain) {
+      try {
+        this.ambientGain.gain.exponentialRampToValueAtTime(0.0001, this.ctx?.currentTime || 0 + 0.2);
+      } catch {}
+      this.ambientGain = null;
+    }
+    this.isAmbiencePlaying = false;
+  }
+
+  toggleAmbience(): boolean {
+    if (this.isAmbiencePlaying) {
+      this.stopAmbience();
+    } else {
+      this.startAmbience();
+    }
+    return this.isAmbiencePlaying;
   }
 }
 

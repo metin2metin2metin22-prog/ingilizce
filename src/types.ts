@@ -1,5 +1,13 @@
 export type Level = 'A1' | 'A2' | 'B1' | 'B2';
 
+export interface TurnOption {
+  word: string;
+  tr: string;
+  reaction: string;
+  isCorrect: boolean;
+  finePounds?: number;
+}
+
 export interface DialogueTurn {
   id: string;
   npcMessageEn: string;
@@ -16,10 +24,12 @@ export interface DialogueTurn {
   sentenceWithBlank: string;    // "The [ _____ ] of my visit is tourism and sightseeing."
   sentenceFilled: string;       // "The purpose of my visit is tourism and sightseeing."
   sentenceTr: string;           // "Ziyaretimin amacı turizm ve şehri gezmektir."
-  wordOptions: string[];        // ["Purpose", "Declare", "Address", "Return"]
+  wordOptions: string[];        // ["Purpose", "Danger", "Secret", "Accident"]
+  optionsDetails?: TurnOption[];// Detailed options with hilarious/dramatic officer reactions
   sentenceTokens?: string[];    // ["The", "purpose", "of", "my", "visit", "is", "tourism", "and", "sightseeing."]
   officerReactionAngry?: string;    // e.g. "Memur kaşlarını çattı: 'Cevabınız şüphe uyandırıyor!'"
   officerReactionImpressed?: string;// e.g. "Memur başını salladı: 'Harika bir İngilizce, hoş geldiniz.'"
+  costPounds?: number;          // e.g. -3.80 at King's Cross for latte!
 }
 
 export interface DialogueScenario {
@@ -30,6 +40,8 @@ export interface DialogueScenario {
   npcTitle: string;
   npcAvatar: string;
   introDescription: string;
+  flightCode?: string;          // e.g. "TK1985 (IST -> LHR)"
+  missionObjective: string;     // e.g. "Pasaport memurunu geç ve Londra'ya adım at!"
   turns: DialogueTurn[];
   stamped: boolean;
   backgroundTheme?: string;

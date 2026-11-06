@@ -9,8 +9,8 @@ import { PassportModal } from './components/PassportModal';
 import { DeportedModal } from './components/DeportedModal';
 import { sounds } from './utils/audio';
 
-const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v9';
-const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v9';
+const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v10';
+const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v10';
 
 const INITIAL_PASSPORT: PlayerPassport = {
   travelerName: 'Yolcu (Explorer)',
@@ -45,7 +45,7 @@ export function App() {
       const saved = localStorage.getItem(STORAGE_KEY_SCENARIOS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed[0]?.turns?.[0]?.grammarPattern) {
+        if (Array.isArray(parsed) && parsed[0]?.turns?.[0]?.optionsDetails) {
           return parsed;
         }
       }
@@ -73,12 +73,12 @@ export function App() {
     } catch {}
   }, [safeScenarios]);
 
-  // Handle XP & Cash Reward
+  // Handle XP & Cash Reward / Deductions
   const handleRewardXP = (xpGain: number, poundsGain: number) => {
     setPassport((prev) => {
-      const nextXP = (prev.xp || 0) + xpGain;
-      const nextPounds = (prev.cashPounds || 0) + poundsGain;
-      const nextStreak = (prev.streak || 0) + 1;
+      const nextXP = Math.max(0, (prev.xp || 0) + xpGain);
+      const nextPounds = Math.max(0, Math.round(((prev.cashPounds || 0) + poundsGain) * 10) / 10);
+      const nextStreak = (prev.streak || 0) + (xpGain > 0 ? 1 : 0);
       let nextRank = 'Çaylak Yolcu';
       if (nextXP >= 800) nextRank = 'Diplomat 👑';
       else if (nextXP >= 400) nextRank = 'Yerli Londralı 🏛️';
@@ -183,6 +183,7 @@ export function App() {
             key={currentScenario.id}
             scenario={currentScenario}
             warningsLeft={passport.warningsLeft}
+            cashPounds={passport.cashPounds}
             onLoseWarning={handleLoseWarning}
             onScenarioCompleted={handleScenarioCompleted}
             onDeported={handleDeported}

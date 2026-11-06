@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { DialogueScenario, DialogueTurn } from '../types';
+import { DialogueScenario, DialogueTurn, TurnOption } from '../types';
 import { 
   Volume2, Sparkles, AlertTriangle, 
   Lightbulb, Stamp, ArrowRight, ArrowLeft, RotateCcw, 
   ShieldAlert, Award, BookOpen, GraduationCap, MessageSquare,
   Mic, MicOff, Headphones, Eye, CheckCircle2, Flame,
-  Timer, Zap, Shield, HelpCircle
+  Timer, Zap, Shield, Plane, Banknote, HelpCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -17,6 +17,7 @@ import { InteractiveWordText } from './InteractiveWordText';
 interface InteractiveDialogueProps {
   scenario: DialogueScenario;
   warningsLeft: number;
+  cashPounds: number;
   onLoseWarning: () => void;
   onScenarioCompleted: (scenarioId: string, wordIds: string[]) => void;
   onDeported: () => void;
@@ -39,6 +40,7 @@ type OfficerMood = 'NEUTRAL' | 'SUSPICIOUS' | 'ANGRY' | 'IMPRESSED';
 export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   scenario,
   warningsLeft,
+  cashPounds,
   onLoseWarning,
   onScenarioCompleted,
   onDeported,
@@ -74,11 +76,15 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const [suspicionPercent, setSuspicionPercent] = useState<number>(20);
   const [comboCount, setComboCount] = useState<number>(0);
   const [comboBanner, setComboBanner] = useState<string | null>(null);
+  const [officerLiveReaction, setOfficerLiveReaction] = useState<string | null>(null);
 
   // Adrenaline Timer
   const [isAdrenalineMode, setIsAdrenalineMode] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(18);
   const timerRef = useRef<any>(null);
+
+  // Ambience audio
+  const [isAmbienceActive, setIsAmbienceActive] = useState<boolean>(sounds.isAmbiencePlaying);
 
   // Step 2: Dialogue state
   const [currentTurnIndex, setCurrentTurnIndex] = useState<number>(0);
@@ -136,6 +142,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     setSuspicionPercent(20);
     setComboCount(0);
     setMatchedPairs([]);
+    setOfficerLiveReaction(null);
   }, [scenario]);
 
   // Adrenaline Timer loop
@@ -180,9 +187,9 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   // Auto scroll chat
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, wrongWordFeedback]);
+  }, [messages, wrongWordFeedback, officerLiveReaction]);
 
-  // Clean up mic
+  // Clean up mic & ambience
   useEffect(() => {
     return () => {
       stopSpeechRecognition();
@@ -340,6 +347,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     setOfficerMood('NEUTRAL');
     setSuspicionPercent(20);
     setComboCount(0);
+    setOfficerLiveReaction(null);
 
     const firstTurn = safeTurns[0];
     if (firstTurn) {
@@ -366,12 +374,15 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     );
   }
 
-  // Handle player selecting a word in dialogue
+  // Handle player selecting a word in dialogue (Rich options & dramatic reactions)
   const handleSelectWord = (wordChoice: string) => {
     if (!currentTurn) return;
     setSelectedWord(wordChoice);
 
     const isMatch = wordChoice.toLowerCase() === currentTurn.targetWord.toLowerCase();
+    const optionDetail = currentTurn.optionsDetails?.find(
+      (opt) => opt.word.toLowerCase() === wordChoice.toLowerCase()
+    );
 
     if (isMatch) {
       // Correct! Dopamine combo surge
@@ -380,12 +391,13 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
       sounds.playCombo(nextCombo);
 
       const xpEarned = 20 + nextCombo * 10;
-      const poundsEarned = nextCombo >= 3 ? 5 : 2;
+      const poundsEarned = (currentTurn.costPounds || 0) + (nextCombo >= 3 ? 5 : 2);
       onRewardXP(xpEarned, poundsEarned);
 
       // Lower suspicion & improve mood
       setSuspicionPercent((prev) => Math.max(0, prev - 25));
       setOfficerMood(nextCombo >= 2 ? 'IMPRESSED' : 'NEUTRAL');
+      setOfficerLiveReaction(optionDetail?.reaction || 'Memur onayladı: "Very well."');
 
       // Combo banner
       if (nextCombo === 2) {
@@ -434,18 +446,19 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
           setCurrentTurnIndex((prev) => prev + 1);
           setSelectedWord(null);
           setRevealedNpcText(false);
+          setOfficerLiveReaction(null);
           speakEnglish(nextTurn.audioText);
-        }, 1100);
+        }, 1300);
       } else {
         // Dialogue passed! Transition to Retention Blitz
         setTimeout(() => {
           sounds.playAirportChime();
           setMode('RETENTION_BLITZ');
           setupBlitzQuestion(0);
-        }, 1200);
+        }, 1300);
       }
     } else {
-      // Wrong word: Suspicion surge!
+      // Wrong word: Suspicion surge + Hilarious Officer Reaction!
       sounds.playWarning();
       sounds.playHeartbeat();
       setIsShaking(true);
@@ -456,8 +469,17 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
       const nextSuspicion = Math.min(100, suspicionPercent + 35);
       setSuspicionPercent(nextSuspicion);
 
+      // Fine penalty if applicable
+      if (optionDetail?.finePounds) {
+        onRewardXP(0, -optionDetail.finePounds);
+      }
+
+      const specificReaction = optionDetail?.reaction || `Memur duraksadı: '${wordChoice}' kelimesi buraya uymaz!`;
+      const penaltyNotice = optionDetail?.finePounds ? ` (💸 -£${optionDetail.finePounds} Ceza kesildi!)` : '';
+
+      setOfficerLiveReaction(specificReaction);
       setWrongWordFeedback(
-        `Memur duraksadı: '${wordChoice}' kelimesi buraya uymaz! İpucunu hatırla: '${currentTurn.targetWord}' = ${currentTurn.targetWordTr} (${currentTurn.mnemonic})`
+        `${specificReaction}${penaltyNotice} İpucu: '${currentTurn.targetWord}' = ${currentTurn.targetWordTr} (${currentTurn.mnemonic})`
       );
       onLoseWarning();
 
@@ -590,14 +612,14 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   }[officerMood];
 
   return (
-    <div className={`relative w-full max-w-4xl mx-auto rounded-3xl bg-slate-900 border-2 shadow-2xl flex flex-col overflow-hidden min-h-[690px] transition-all duration-300 ${
+    <div className={`relative w-full max-w-4xl mx-auto rounded-3xl bg-slate-900 border-2 shadow-2xl flex flex-col overflow-hidden min-h-[710px] transition-all duration-300 ${
       officerMood === 'SUSPICIOUS' ? 'border-amber-500/60 shadow-amber-950/40' :
       officerMood === 'ANGRY' ? 'border-rose-600 shadow-rose-950/60 ring-4 ring-rose-600/30' :
       officerMood === 'IMPRESSED' ? 'border-emerald-500/60 shadow-emerald-950/40' :
       'border-slate-800'
     }`}>
       
-      {/* Top Header: NPC Details, Location & Tension Meter */}
+      {/* Top Header: NPC Details, Location, Ambience & Suspicion Gauge */}
       <div className="bg-slate-950/95 border-b border-slate-800 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="relative w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-3xl shadow-inner">
@@ -622,26 +644,47 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
           </div>
         </div>
 
-        {/* Suspicion Meter (Şüphe Barı) */}
-        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
-          <div className="space-y-0.5 text-right">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-              Şüphe Seviyesi: %{suspicionPercent}
-            </span>
-            <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-              <div
-                className={`h-full transition-all duration-500 ${
-                  suspicionPercent >= 70
-                    ? 'bg-rose-500 animate-pulse'
-                    : suspicionPercent >= 40
-                    ? 'bg-amber-400'
-                    : 'bg-emerald-400'
-                }`}
-                style={{ width: `${suspicionPercent}%` }}
-              />
+        {/* Suspicion Meter & Ambience Toggle */}
+        <div className="flex items-center gap-3">
+          
+          <button
+            onClick={() => {
+              const next = sounds.toggleAmbience();
+              setIsAmbienceActive(next);
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+              isAmbienceActive
+                ? 'bg-sky-500/20 border-sky-400 text-sky-300'
+                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+            }`}
+            title="Londra havalimanı ve tren ortam sesleri"
+          >
+            <Headphones className="w-3.5 h-3.5" />
+            <span>{isAmbienceActive ? 'Ambiyans Açık' : 'Ambiyans'}</span>
+          </button>
+
+          {/* Suspicion Meter (Şüphe Barı) */}
+          <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
+            <div className="space-y-0.5 text-right">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                Şüphe: %{suspicionPercent}
+              </span>
+              <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    suspicionPercent >= 70
+                      ? 'bg-rose-500 animate-pulse'
+                      : suspicionPercent >= 40
+                      ? 'bg-amber-400'
+                      : 'bg-emerald-400'
+                  }`}
+                  style={{ width: `${suspicionPercent}%` }}
+                />
+              </div>
             </div>
+            <ShieldAlert className={`w-4 h-4 ${suspicionPercent >= 70 ? 'text-rose-500 animate-bounce' : 'text-slate-500'}`} />
           </div>
-          <ShieldAlert className={`w-4 h-4 ${suspicionPercent >= 70 ? 'text-rose-500 animate-bounce' : 'text-slate-500'}`} />
+
         </div>
 
         {/* 3 Steps Navigation Pills */}
@@ -684,13 +727,15 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
       </div>
 
       {/* Dynamic Officer Reaction Banner */}
-      {officerMood !== 'NEUTRAL' && (
+      {officerLiveReaction && (
         <div className={`px-5 py-2 text-xs font-bold flex items-center justify-between animate-pop-in ${
           officerMood === 'SUSPICIOUS' ? 'bg-amber-500/20 text-amber-300 border-b border-amber-500/30' :
           officerMood === 'ANGRY' ? 'bg-rose-500/25 text-rose-200 border-b border-rose-500/40' :
           'bg-emerald-500/20 text-emerald-300 border-b border-emerald-500/30'
         }`}>
-          <span>{officerMoodDetails.banner}</span>
+          <span className="flex items-center gap-2">
+            <span>{officerLiveReaction}</span>
+          </span>
           <span className="text-[10px] uppercase font-mono">
             {officerMood === 'IMPRESSED' ? '✓ Şüphe Azaldı (-25%)' : '⚠️ Şüphe Arttı (+35%)'}
           </span>
@@ -709,16 +754,36 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
       {mode === 'LEARN' && currentLearnWord && (
         <div className="flex-1 p-5 sm:p-7 flex flex-col justify-between space-y-5 animate-pop-in">
           
-          {/* Header Info & Sub-tabs (Spelling vs Rapid Match Game) */}
+          {/* Mission Dossier & Boarding Pass Card */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 via-sky-950/40 to-slate-950 border border-sky-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 text-sky-400 text-xs font-black">
+                <Plane className="w-4 h-4 transform -rotate-45" />
+                <span>GÖREV BRİFİNGİ • {scenario.flightCode || 'BRITISH AIRWAYS'}</span>
+              </div>
+              <p className="text-white font-bold text-sm">{scenario.missionObjective}</p>
+              <p className="text-slate-400 text-xs">{scenario.introDescription}</p>
+            </div>
+
+            <button
+              onClick={handleStartDialogue}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-sky-600/30 transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 flex-shrink-0"
+            >
+              <span>Masaya Adım At 👮‍♂️</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Header Sub-tabs: Spelling vs Rapid Match Game */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2">
               <GraduationCap className="w-5 h-5 text-amber-400 flex-shrink-0" />
               <div>
                 <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                  Aşama 1: Kelime ve Gramer Kodlama Dersi
+                  Hayati 5 Kelimeyi Çantana At
                 </span>
                 <p className="text-xs text-slate-400">
-                  Kelimeleri zihnine kazı: Harfleri sırayla diz veya 30 saniye hızlı eşleştirme oyna!
+                  Memurun soracağı 5 kelimeyi harf harf diz veya 30 saniye hızlı eşleştirmeyle hafızana kilitle!
                 </p>
               </div>
             </div>
@@ -740,7 +805,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 text-amber-300" />
-                <span>⚡ 30sn Eşleştirme</span>
+                <span>⚡ 30sn Hızlı Eşleştirme</span>
               </button>
             </div>
           </div>
@@ -1189,7 +1254,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
           )}
 
           {/* Conversation Chat Stream */}
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 max-h-[340px]">
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 max-h-[330px]">
             {messages.map((msg, idx) => {
               const isLatestNpc = msg.speaker === 'NPC' && idx === messages.length - 1;
               const hideThisText = isLatestNpc && earTrainingHideText && !revealedNpcText;
@@ -1312,7 +1377,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                 </div>
               </div>
 
-              {/* MODE 1: Fill the blank */}
+              {/* MODE 1: Fill the blank with Dramatic Multi-Choice Options */}
               {dialogueInputMode === 'FILL_BLANK' && (
                 <>
                   <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-1">
@@ -1328,10 +1393,10 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                     </p>
                   </div>
 
-                  {/* 4 Interactive Word Chips + Mic Button */}
+                  {/* 4 Interactive Word Chips with Turkish Meanings & Warnings */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                      <span>BOŞLUĞA GELECEK DOĞRU KELİMEYİ SEÇ VEYA MİKROFONLA SÖYLE:</span>
+                      <span>DOĞRU KELİMEYİ SEÇ (DİKKAT: YANLIŞ CEVAP POLİSİ ŞÜPHELENDİRİR!):</span>
                       <button
                         onClick={() => handleToggleVoiceInput(false)}
                         className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
@@ -1346,13 +1411,20 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {(currentTurn.wordOptions || []).map((wordOpt, idx) => (
+                      {(currentTurn.optionsDetails || currentTurn.wordOptions.map(w => ({ word: w, tr: '', reaction: '', isCorrect: w === currentTurn.targetWord }))).map((opt, idx) => (
                         <button
                           key={idx}
-                          onClick={() => handleSelectWord(wordOpt)}
-                          className="p-3.5 rounded-2xl bg-slate-900 hover:bg-sky-600/20 border border-slate-800 hover:border-sky-500 text-white font-black text-sm sm:text-base transition-all cursor-pointer text-center shadow-md active:scale-95"
+                          onClick={() => handleSelectWord(opt.word)}
+                          className="p-3 sm:p-3.5 rounded-2xl bg-slate-900 hover:bg-sky-600/20 border border-slate-800 hover:border-sky-500 text-white transition-all cursor-pointer text-center shadow-md active:scale-95 group"
                         >
-                          {wordOpt}
+                          <div className="font-black text-sm sm:text-base group-hover:text-amber-300 transition-colors">
+                            {opt.word}
+                          </div>
+                          {opt.tr && (
+                            <div className="text-[10px] text-slate-400 group-hover:text-slate-300 mt-0.5">
+                              {opt.tr}
+                            </div>
+                          )}
                         </button>
                       ))}
                     </div>
