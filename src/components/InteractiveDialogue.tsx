@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DialogueScenario, DialogueTurn } from '../types';
 import { 
-  Volume2, Sparkles, Check, AlertTriangle, 
+  Volume2, Sparkles, AlertTriangle, 
   Lightbulb, Stamp, ArrowRight, ArrowLeft, RotateCcw, 
   ShieldAlert, Award, BookOpen, GraduationCap, MessageSquare,
-  Mic, MicOff, Headphones, Eye, EyeOff, Layers, CheckCircle2
+  Mic, MicOff, Headphones, Eye, CheckCircle2, Flame,
+  Timer, Zap, Shield, HelpCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -20,6 +21,7 @@ interface InteractiveDialogueProps {
   onScenarioCompleted: (scenarioId: string, wordIds: string[]) => void;
   onDeported: () => void;
   onNextScenario: () => void;
+  onRewardXP: (xp: number, pounds: number) => void;
 }
 
 interface ChatMessage {
@@ -32,6 +34,8 @@ interface ChatMessage {
   mnemonic?: string;
 }
 
+type OfficerMood = 'NEUTRAL' | 'SUSPICIOUS' | 'ANGRY' | 'IMPRESSED';
+
 export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   scenario,
   warningsLeft,
@@ -39,10 +43,11 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   onScenarioCompleted,
   onDeported,
   onNextScenario,
+  onRewardXP,
 }) => {
   // Mode:
-  // 1. 'LEARN': 5 kelimeyi harf dizme, telaffuz, gramer kalıbı ve hafıza şifresiyle öğreten interaktif ders
-  // 2. 'DIALOGUE': Öğrenilen kelimeleri memurla canlı konuşmada uygulama (Mikrofon, Cümle Kurma, Boşluk Doldurma)
+  // 1. 'LEARN': 5 kelimeyi harf dizme, hızlı eşleştirme ve sesli pratikle öğreten interaktif ders
+  // 2. 'DIALOGUE': Canlı hayatta kalma diyalogu (Gerilim barı, kombolar, mikrofon, cümle kurma)
   // 3. 'RETENTION_BLITZ': %100 hafıza mühürleme sınavı
   // 4. 'COMPLETED': Pasaporta yeşil damga vurulma anı
   const [mode, setMode] = useState<'LEARN' | 'DIALOGUE' | 'RETENTION_BLITZ' | 'COMPLETED'>('LEARN');
@@ -55,9 +60,25 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const [masteredLearnIndices, setMasteredLearnIndices] = useState<number[]>([]);
   const [showGrammarTip, setShowGrammarTip] = useState<boolean>(false);
 
+  // Rapid Matching Mini-Game in Step 1
+  const [step1SubTab, setStep1SubTab] = useState<'SPELL' | 'MATCH_GAME'>('SPELL');
+  const [matchSelectedEn, setMatchSelectedEn] = useState<string | null>(null);
+  const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
+
   // Voice Speech Recognition state
   const [isListening, setIsListening] = useState<boolean>(false);
   const [speechFeedback, setSpeechFeedback] = useState<string | null>(null);
+
+  // Dynamic Officer Tension & Mood
+  const [officerMood, setOfficerMood] = useState<OfficerMood>('NEUTRAL');
+  const [suspicionPercent, setSuspicionPercent] = useState<number>(20);
+  const [comboCount, setComboCount] = useState<number>(0);
+  const [comboBanner, setComboBanner] = useState<string | null>(null);
+
+  // Adrenaline Timer
+  const [isAdrenalineMode, setIsAdrenalineMode] = useState<boolean>(false);
+  const [timeLeft, setTimeLeft] = useState<number>(18);
+  const timerRef = useRef<any>(null);
 
   // Step 2: Dialogue state
   const [currentTurnIndex, setCurrentTurnIndex] = useState<number>(0);
@@ -111,7 +132,38 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     setBlitzIndex(0);
     setBlitzScore(0);
     setMasteredLearnIndices([]);
+    setOfficerMood('NEUTRAL');
+    setSuspicionPercent(20);
+    setComboCount(0);
+    setMatchedPairs([]);
   }, [scenario]);
+
+  // Adrenaline Timer loop
+  useEffect(() => {
+    if (mode === 'DIALOGUE' && isAdrenalineMode && currentTurn) {
+      setTimeLeft(18);
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current);
+            handleTimeExpired();
+            return 0;
+          }
+          if (prev === 5) {
+            sounds.playHeartbeat();
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [mode, isAdrenalineMode, currentTurnIndex, currentTurn]);
 
   // Setup Sentence Builder tokens when turn changes
   useEffect(() => {
@@ -137,6 +189,22 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     };
   }, []);
 
+  // Time expired in Adrenaline Mode
+  const handleTimeExpired = () => {
+    sounds.playWarning();
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 500);
+    setOfficerMood('SUSPICIOUS');
+    setSuspicionPercent((prev) => Math.min(100, prev + 35));
+    setComboCount(0);
+    setWrongWordFeedback('Süre doldu! Memur duraksamandan şüphelendi: "Neden tereddüt ettiniz?"');
+    onLoseWarning();
+
+    if (warningsLeft <= 1 || suspicionPercent >= 90) {
+      setTimeout(() => onDeported(), 900);
+    }
+  };
+
   // Handle letter click in Step 1 Spelling Challenge
   const handleLetterClick = (letterObj: { id: string; letter: string; used: boolean }) => {
     if (letterObj.used || spellingSuccess || !currentLearnWord) return;
@@ -145,27 +213,27 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     const nextInput = spellingInput + letterObj.letter;
     setSpellingInput(nextInput);
 
-    setScrambledLetters(prev =>
-      prev.map(l => (l.id === letterObj.id ? { ...l, used: true } : l))
+    setScrambledLetters((prev) =>
+      prev.map((l) => (l.id === letterObj.id ? { ...l, used: true } : l))
     );
 
     const targetClean = currentLearnWord.targetWord.toUpperCase();
     if (nextInput === targetClean) {
-      // Spelling Match!
       sounds.playCorrect();
+      sounds.playCoin();
       setSpellingSuccess(true);
-      setMasteredLearnIndices(prev => Array.from(new Set([...prev, learningCardIndex])));
+      setMasteredLearnIndices((prev) => Array.from(new Set([...prev, learningCardIndex])));
+      onRewardXP(20, 2);
       confetti({
-        particleCount: 45,
+        particleCount: 50,
         spread: 60,
         origin: { y: 0.7 },
       });
     } else if (!targetClean.startsWith(nextInput)) {
       sounds.playWarning();
-      // Reset after wrong letter
       setTimeout(() => {
         setSpellingInput('');
-        setScrambledLetters(prev => prev.map(l => ({ ...l, used: false })));
+        setScrambledLetters((prev) => prev.map((l) => ({ ...l, used: false })));
       }, 450);
     }
   };
@@ -173,7 +241,36 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const handleResetSpelling = () => {
     sounds.playClick();
     setSpellingInput('');
-    setScrambledLetters(prev => prev.map(l => ({ ...l, used: false })));
+    setScrambledLetters((prev) => prev.map((l) => ({ ...l, used: false })));
+  };
+
+  // Rapid Match Mini-Game Logic (Step 1)
+  const handleMatchWord = (wordEn: string) => {
+    sounds.playClick();
+    setMatchSelectedEn(wordEn);
+  };
+
+  const handleMatchTr = (trMeaning: string) => {
+    if (!matchSelectedEn) return;
+    const targetTurn = safeTurns.find((t) => t.targetWord.toLowerCase() === matchSelectedEn.toLowerCase());
+
+    if (targetTurn && targetTurn.targetWordTr.toLowerCase() === trMeaning.toLowerCase()) {
+      sounds.playCorrect();
+      sounds.playCoin();
+      const nextMatched = [...matchedPairs, matchSelectedEn];
+      setMatchedPairs(nextMatched);
+      setMatchSelectedEn(null);
+      onRewardXP(15, 1);
+
+      if (nextMatched.length === safeTurns.length) {
+        sounds.playLevelUp();
+        confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+        setMasteredLearnIndices(safeTurns.map((_, i) => i));
+      }
+    } else {
+      sounds.playWarning();
+      setMatchSelectedEn(null);
+    }
   };
 
   // Voice Practice via Microphone in Step 1 or Step 2
@@ -201,9 +298,11 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
           const target = currentLearnWord.targetWord.toLowerCase();
           if (cleanedSpoken.includes(target)) {
             sounds.playCorrect();
-            setSpeechFeedback(`✓ Mükemmel telaffuz! Duyulan: "${spokenText}"`);
+            sounds.playCoin();
+            setSpeechFeedback(`✓ Mükemmel telaffuz! Duyulan: "${spokenText}" (+25 XP)`);
             setSpellingSuccess(true);
-            setMasteredLearnIndices(prev => Array.from(new Set([...prev, learningCardIndex])));
+            setMasteredLearnIndices((prev) => Array.from(new Set([...prev, learningCardIndex])));
+            onRewardXP(25, 3);
           } else {
             sounds.playWarning();
             setSpeechFeedback(`Duyulan: "${spokenText}" - Tekrar dene veya harfleri diz!`);
@@ -211,7 +310,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
         } else if (!isStep1 && currentTurn) {
           const target = currentTurn.targetWord.toLowerCase();
           if (cleanedSpoken.includes(target)) {
-            setSpeechFeedback(`✓ Doğru kelime algılandı: "${spokenText}"`);
+            setSpeechFeedback(`✓ Doğru kelime algılandı: "${spokenText}" (+30 XP)`);
             handleSelectWord(currentTurn.targetWord);
           } else {
             sounds.playWarning();
@@ -238,6 +337,9 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     setWrongWordFeedback(null);
     setSpeechFeedback(null);
     setRevealedNpcText(false);
+    setOfficerMood('NEUTRAL');
+    setSuspicionPercent(20);
+    setComboCount(0);
 
     const firstTurn = safeTurns[0];
     if (firstTurn) {
@@ -264,7 +366,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     );
   }
 
-  // Handle player selecting a word to fill the sentence blank in dialogue
+  // Handle player selecting a word in dialogue
   const handleSelectWord = (wordChoice: string) => {
     if (!currentTurn) return;
     setSelectedWord(wordChoice);
@@ -272,7 +374,31 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     const isMatch = wordChoice.toLowerCase() === currentTurn.targetWord.toLowerCase();
 
     if (isMatch) {
-      sounds.playCorrect();
+      // Correct! Dopamine combo surge
+      const nextCombo = comboCount + 1;
+      setComboCount(nextCombo);
+      sounds.playCombo(nextCombo);
+
+      const xpEarned = 20 + nextCombo * 10;
+      const poundsEarned = nextCombo >= 3 ? 5 : 2;
+      onRewardXP(xpEarned, poundsEarned);
+
+      // Lower suspicion & improve mood
+      setSuspicionPercent((prev) => Math.max(0, prev - 25));
+      setOfficerMood(nextCombo >= 2 ? 'IMPRESSED' : 'NEUTRAL');
+
+      // Combo banner
+      if (nextCombo === 2) {
+        setComboBanner('🔥 2X KOMBO! Harika akıcılık! (+30 XP)');
+      } else if (nextCombo === 3) {
+        setComboBanner('⚡ 3X KOMBO! Londra Aksanı! (+50 XP, +£5)');
+        sounds.playCoin();
+      } else if (nextCombo >= 4) {
+        setComboBanner(`👑 ${nextCombo}X EFSANEVİ SERİ! (+${xpEarned} XP, +£5)`);
+        sounds.playCoin();
+      }
+      setTimeout(() => setComboBanner(null), 2500);
+
       setWrongWordFeedback(null);
       setSpeechFeedback(null);
 
@@ -305,31 +431,38 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
               mnemonic: nextTurn.mnemonic,
             },
           ]);
-          setCurrentTurnIndex(prev => prev + 1);
+          setCurrentTurnIndex((prev) => prev + 1);
           setSelectedWord(null);
           setRevealedNpcText(false);
           speakEnglish(nextTurn.audioText);
         }, 1100);
       } else {
-        // Dialogue passed! Transition to 5-word Retention Blitz
+        // Dialogue passed! Transition to Retention Blitz
         setTimeout(() => {
           sounds.playAirportChime();
           setMode('RETENTION_BLITZ');
           setupBlitzQuestion(0);
         }, 1200);
       }
-
     } else {
+      // Wrong word: Suspicion surge!
       sounds.playWarning();
+      sounds.playHeartbeat();
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
+
+      setComboCount(0);
+      setOfficerMood('SUSPICIOUS');
+      const nextSuspicion = Math.min(100, suspicionPercent + 35);
+      setSuspicionPercent(nextSuspicion);
 
       setWrongWordFeedback(
         `Memur duraksadı: '${wordChoice}' kelimesi buraya uymaz! İpucunu hatırla: '${currentTurn.targetWord}' = ${currentTurn.targetWordTr} (${currentTurn.mnemonic})`
       );
       onLoseWarning();
 
-      if (warningsLeft <= 1) {
+      if (warningsLeft <= 1 || nextSuspicion >= 100) {
+        setOfficerMood('ANGRY');
         setTimeout(() => onDeported(), 900);
       }
     }
@@ -342,11 +475,11 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
 
     const nextAssembled = [...assembledTokens, tok.text];
     setAssembledTokens(nextAssembled);
-    setAvailableTokens(prev =>
-      prev.map(t => (t.id === tok.id ? { ...t, used: true } : t))
+    setAvailableTokens((prev) =>
+      prev.map((t) => (t.id === tok.id ? { ...t, used: true } : t))
     );
 
-    const fullSentence = (currentTurn.sentenceTokens || currentTurn.sentenceFilled.split(' '));
+    const fullSentence = currentTurn.sentenceTokens || currentTurn.sentenceFilled.split(' ');
     const targetString = fullSentence.join(' ').toLowerCase().replace(/[.,!?;]/g, '');
     const currentString = nextAssembled.join(' ').toLowerCase().replace(/[.,!?;]/g, '');
 
@@ -355,10 +488,10 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
         handleSelectWord(currentTurn.targetWord);
       } else {
         sounds.playWarning();
-        setWrongWordFeedback('Cümle sırası hatalı oldu! İngilizce dizilişe dikkat et: Özne + Fiil + Nesne.');
+        setWrongWordFeedback('Cümle sırası hatalı oldu! İngilizce söz dizilişine dikkat et: Özne + Fiil + Nesne.');
         setTimeout(() => {
           setAssembledTokens([]);
-          setAvailableTokens(prev => prev.map(t => ({ ...t, used: false })));
+          setAvailableTokens((prev) => prev.map((t) => ({ ...t, used: false })));
         }, 800);
       }
     }
@@ -367,7 +500,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const handleResetSentenceBuilder = () => {
     sounds.playClick();
     setAssembledTokens([]);
-    setAvailableTokens(prev => prev.map(t => ({ ...t, used: false })));
+    setAvailableTokens((prev) => prev.map((t) => ({ ...t, used: false })));
   };
 
   // Retention Blitz setup
@@ -379,7 +512,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
 
     const distractors = safeTurns
       .filter((_, i) => i !== index)
-      .map(t => t.targetWordTr);
+      .map((t) => t.targetWordTr);
     const pool = [targetTurn.targetWordTr, ...distractors.slice(0, 3)].sort(() => Math.random() - 0.5);
     setBlitzOptions(pool);
     speakEnglish(targetTurn.targetWord);
@@ -391,21 +524,25 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
 
     if (chosenTr.toLowerCase() === currentTarget.targetWordTr.toLowerCase()) {
       sounds.playCorrect();
+      sounds.playCoin();
       const nextScore = blitzScore + 1;
       setBlitzScore(nextScore);
+      onRewardXP(15, 2);
 
       if (blitzIndex + 1 < safeTurns.length) {
         setupBlitzQuestion(blitzIndex + 1);
       } else {
         // 100% STAMP SLAM
         sounds.playPassportStamp();
+        sounds.playLevelUp();
         setMode('COMPLETED');
+        onRewardXP(100, 30);
         confetti({
           particleCount: 160,
           spread: 110,
           origin: { y: 0.6 },
         });
-        onScenarioCompleted(scenario.id, safeTurns.map(t => t.targetWord));
+        onScenarioCompleted(scenario.id, safeTurns.map((t) => t.targetWord));
       }
     } else {
       sounds.playWarning();
@@ -424,14 +561,52 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     '',
   ];
 
+  // Dynamic Avatar & Mood text
+  const officerMoodDetails = {
+    NEUTRAL: {
+      avatar: scenario.npcAvatar,
+      label: 'Sert & Dikkatli',
+      color: 'text-slate-400',
+      banner: 'Cevabınızı bekliyor...',
+    },
+    SUSPICIOUS: {
+      avatar: '🤨',
+      label: 'Şüphelendi!',
+      color: 'text-amber-400 animate-pulse',
+      banner: '"Emin misiniz? Tutarsızlık seziyorum..."',
+    },
+    ANGRY: {
+      avatar: '🚨',
+      label: 'Sorgulama Alarmı!',
+      color: 'text-rose-400 animate-bounce',
+      banner: '"Telsize uzandı: Son uyarım, doğruyu söyleyin!"',
+    },
+    IMPRESSED: {
+      avatar: '😊',
+      label: 'Hayran Kaldı!',
+      color: 'text-emerald-400',
+      banner: '"Mükemmel telaffuz ve akıcı İngilizce!"',
+    },
+  }[officerMood];
+
   return (
-    <div className="relative w-full max-w-4xl mx-auto rounded-3xl bg-slate-900 border-2 border-slate-800 shadow-2xl flex flex-col overflow-hidden min-h-[680px]">
+    <div className={`relative w-full max-w-4xl mx-auto rounded-3xl bg-slate-900 border-2 shadow-2xl flex flex-col overflow-hidden min-h-[690px] transition-all duration-300 ${
+      officerMood === 'SUSPICIOUS' ? 'border-amber-500/60 shadow-amber-950/40' :
+      officerMood === 'ANGRY' ? 'border-rose-600 shadow-rose-950/60 ring-4 ring-rose-600/30' :
+      officerMood === 'IMPRESSED' ? 'border-emerald-500/60 shadow-emerald-950/40' :
+      'border-slate-800'
+    }`}>
       
-      {/* Top Header: NPC Details, Location & 3 Steps Indicator */}
+      {/* Top Header: NPC Details, Location & Tension Meter */}
       <div className="bg-slate-950/95 border-b border-slate-800 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-3xl shadow-inner">
-            {scenario.npcAvatar}
+          <div className="relative w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-3xl shadow-inner">
+            {officerMoodDetails.avatar}
+            {comboCount >= 2 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-orange-500 text-slate-950 font-black text-[9px] animate-bounce">
+                {comboCount}x🔥
+              </span>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -439,9 +614,34 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
               <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-bold">
                 {scenario.level}
               </span>
+              <span className={`text-[11px] font-bold ${officerMoodDetails.color}`}>
+                • {officerMoodDetails.label}
+              </span>
             </div>
             <p className="text-xs text-slate-400">{scenario.location}</p>
           </div>
+        </div>
+
+        {/* Suspicion Meter (Şüphe Barı) */}
+        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
+          <div className="space-y-0.5 text-right">
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+              Şüphe Seviyesi: %{suspicionPercent}
+            </span>
+            <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  suspicionPercent >= 70
+                    ? 'bg-rose-500 animate-pulse'
+                    : suspicionPercent >= 40
+                    ? 'bg-amber-400'
+                    : 'bg-emerald-400'
+                }`}
+                style={{ width: `${suspicionPercent}%` }}
+              />
+            </div>
+          </div>
+          <ShieldAlert className={`w-4 h-4 ${suspicionPercent >= 70 ? 'text-rose-500 animate-bounce' : 'text-slate-500'}`} />
         </div>
 
         {/* 3 Steps Navigation Pills */}
@@ -455,7 +655,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>1. Kelimeleri Zihnine Kodla</span>
+            <span>1. Kodla & Oyna</span>
           </button>
 
           <button
@@ -481,18 +681,35 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
           </div>
         </div>
 
-        {/* Warnings left */}
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-amber-400">
-          <AlertTriangle className={`w-4 h-4 ${warningsLeft <= 1 ? 'text-rose-500 animate-bounce' : 'text-amber-400'}`} />
-          <span>{warningsLeft}/3 Hak</span>
-        </div>
       </div>
 
-      {/* ================= STEP 1: GERÇEK ÖĞRETİM DERSİ (WORD MASTERCLASS) ================= */}
+      {/* Dynamic Officer Reaction Banner */}
+      {officerMood !== 'NEUTRAL' && (
+        <div className={`px-5 py-2 text-xs font-bold flex items-center justify-between animate-pop-in ${
+          officerMood === 'SUSPICIOUS' ? 'bg-amber-500/20 text-amber-300 border-b border-amber-500/30' :
+          officerMood === 'ANGRY' ? 'bg-rose-500/25 text-rose-200 border-b border-rose-500/40' :
+          'bg-emerald-500/20 text-emerald-300 border-b border-emerald-500/30'
+        }`}>
+          <span>{officerMoodDetails.banner}</span>
+          <span className="text-[10px] uppercase font-mono">
+            {officerMood === 'IMPRESSED' ? '✓ Şüphe Azaldı (-25%)' : '⚠️ Şüphe Arttı (+35%)'}
+          </span>
+        </div>
+      )}
+
+      {/* Floating Combo Toast Banner */}
+      {comboBanner && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-2xl shadow-orange-500/40 animate-bounce flex items-center gap-2">
+          <Flame className="w-4 h-4 fill-slate-950" />
+          <span>{comboBanner}</span>
+        </div>
+      )}
+
+      {/* ================= STEP 1: GERÇEK ÖĞRETİM & OYUN MODU ================= */}
       {mode === 'LEARN' && currentLearnWord && (
         <div className="flex-1 p-5 sm:p-7 flex flex-col justify-between space-y-5 animate-pop-in">
           
-          {/* Header Info & Progress Stepper */}
+          {/* Header Info & Sub-tabs (Spelling vs Rapid Match Game) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2">
               <GraduationCap className="w-5 h-5 text-amber-400 flex-shrink-0" />
@@ -501,309 +718,440 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                   Aşama 1: Kelime ve Gramer Kodlama Dersi
                 </span>
                 <p className="text-xs text-slate-400">
-                  Kelimeleri sadece okuma; harflerini diz ve telaffuzunu mikrofonla test et!
+                  Kelimeleri zihnine kazı: Harfleri sırayla diz veya 30 saniye hızlı eşleştirme oyna!
                 </p>
               </div>
             </div>
 
-            {/* Stepper dots */}
-            <div className="flex items-center gap-1.5">
-              {safeTurns.map((turn, idx) => {
-                const isMastered = masteredLearnIndices.includes(idx);
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => setLearningCardIndex(idx)}
-                    className={`flex items-center justify-center rounded-xl text-[10px] font-black transition-all cursor-pointer ${
-                      idx === learningCardIndex
-                        ? 'bg-amber-400 text-slate-950 w-8 h-7 shadow-md'
-                        : isMastered
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 w-7 h-7'
-                        : 'bg-slate-800 text-slate-400 w-7 h-7'
-                    }`}
-                  >
-                    {isMastered ? '✓' : idx + 1}
-                  </button>
-                );
-              })}
+            {/* Sub-tab Switcher: Harf Dizme vs Hızlı Eşleştirme */}
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+              <button
+                onClick={() => setStep1SubTab('SPELL')}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  step1SubTab === 'SPELL' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                🧩 Harf Dizme
+              </button>
+              <button
+                onClick={() => setStep1SubTab('MATCH_GAME')}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                  step1SubTab === 'MATCH_GAME' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-300" />
+                <span>⚡ 30sn Eşleştirme</span>
+              </button>
             </div>
           </div>
 
-          {/* Masterclass Card Body */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            
-            {/* Left Column: Word Identity, Meaning & Memory Trick */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-slate-950 border border-slate-800 shadow-xl space-y-4">
-              
-              {/* Word & Audio */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-slate-500">
-                    {currentLearnWord.partOfSpeech || 'Kelime'} • {scenario.level}
-                  </span>
-                  {masteredLearnIndices.includes(learningCardIndex) && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Zihne Kazındı
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <h3 className="text-3xl sm:text-4xl font-black text-white font-heading tracking-tight">
-                    {currentLearnWord.targetWord}
-                  </h3>
-                  
-                  <div className="flex items-center gap-1.5">
+          {/* Sub-tab A: Rich Spelling & Grammar Masterclass */}
+          {step1SubTab === 'SPELL' && (
+            <>
+              {/* Stepper dots */}
+              <div className="flex items-center justify-center gap-1.5">
+                {safeTurns.map((turn, idx) => {
+                  const isMastered = masteredLearnIndices.includes(idx);
+                  return (
                     <button
-                      onClick={() => {
-                        sounds.playClick();
-                        speakEnglish(currentLearnWord.targetWord);
-                      }}
-                      className="p-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-600/30 transition-all cursor-pointer"
-                      title="Normal Hızda Dinle"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        sounds.playClick();
-                        speakEnglishSlow(currentLearnWord.targetWord);
-                      }}
-                      className="p-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 transition-all cursor-pointer text-xs"
-                      title="Yavaş Tane Tane Dinle"
-                    >
-                      🐢
-                    </button>
-                  </div>
-                </div>
-                <p className="text-slate-400 font-mono text-xs">{currentLearnWord.targetWordPhonetic}</p>
-              </div>
-
-              {/* Meaning */}
-              <div className="py-2.5 px-4 rounded-2xl bg-slate-900 border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-500">Türkçe Anlamı</span>
-                <h4 className="text-xl font-black text-amber-300 mt-0.5">{currentLearnWord.targetWordTr}</h4>
-              </div>
-
-              {/* Memory Mnemonic Clue */}
-              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left text-xs flex items-start gap-2.5">
-                <Lightbulb className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-amber-300">💡 Hafıza Şifresi:</span>
-                  <p className="text-slate-200 mt-0.5 leading-relaxed font-medium">{currentLearnWord.mnemonic}</p>
-                </div>
-              </div>
-
-              {/* Grammar Pattern */}
-              {currentLearnWord.grammarPattern && (
-                <div className="p-3.5 rounded-2xl bg-sky-950/40 border border-sky-800/40 text-left text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black text-sky-400 uppercase tracking-wider">
-                      🧠 Cümle Kalıbı Formülü:
-                    </span>
-                    <button
-                      onClick={() => setShowGrammarTip(!showGrammarTip)}
-                      className="text-[10px] text-sky-300 hover:underline cursor-pointer"
-                    >
-                      {showGrammarTip ? 'Gizle ▲' : 'Detayı Gör ▼'}
-                    </button>
-                  </div>
-                  <p className="text-white font-mono font-bold bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-800">
-                    {currentLearnWord.grammarPattern}
-                  </p>
-                  {showGrammarTip && currentLearnWord.grammarExplanation && (
-                    <p className="text-slate-300 text-[11px] pt-1.5 leading-relaxed">
-                      {currentLearnWord.grammarExplanation}
-                    </p>
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {/* Right Column: Interactive Practice: Letter Scramble & Microphone */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-slate-950 border border-slate-800 shadow-xl flex flex-col justify-between space-y-4">
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="text-xs font-black text-white flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    Kelimeni Pratik Et (Yaz & Konuş)
-                  </span>
-                  <span className="text-[10px] text-slate-400">Harfleri sırayla diz</span>
-                </div>
-
-                {/* Scramble Letter Target Slot */}
-                <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold">Harf Dizilişi:</span>
-                  <div className="min-h-[42px] flex items-center justify-center gap-1.5 flex-wrap">
-                    {currentLearnWord.targetWord.toUpperCase().split('').map((char, idx) => {
-                      const typedChar = spellingInput[idx];
-                      return (
-                        <div
-                          key={idx}
-                          className={`w-9 h-10 rounded-xl flex items-center justify-center font-mono font-black text-lg border-2 transition-all ${
-                            typedChar
-                              ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                              : 'bg-slate-950 border-slate-800 text-slate-600'
-                          }`}
-                        >
-                          {typedChar || '_'}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Scrambled Clickable Letter Tiles */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Harflere tıkla:</span>
-                    <button
-                      onClick={handleResetSpelling}
-                      className="text-amber-400 hover:text-amber-300 underline cursor-pointer text-[10px]"
-                    >
-                      Sıfırla ↺
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {scrambledLetters.map((item) => (
-                      <button
-                        key={item.id}
-                        disabled={item.used || spellingSuccess}
-                        onClick={() => handleLetterClick(item)}
-                        className={`w-10 h-10 rounded-xl font-black text-base transition-all cursor-pointer active:scale-90 ${
-                          item.used
-                            ? 'bg-slate-900 text-slate-700 border border-slate-800 opacity-30 cursor-not-allowed'
-                            : 'bg-slate-800 hover:bg-sky-600 border border-slate-700 hover:border-sky-400 text-white shadow-md'
-                        }`}
-                      >
-                        {item.letter}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Success Banner */}
-                {spellingSuccess && (
-                  <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-pop-in flex items-center justify-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Harika! Yazım hafızana kodlandı.</span>
-                  </div>
-                )}
-
-                {/* Microphone Practice Button */}
-                <div className="pt-2 border-t border-slate-800">
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => handleToggleVoiceInput(true)}
-                      className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                        isListening
-                          ? 'bg-rose-600 border-rose-500 text-white animate-pulse'
-                          : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200'
+                      key={idx}
+                      onClick={() => setLearningCardIndex(idx)}
+                      className={`flex items-center justify-center rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                        idx === learningCardIndex
+                          ? 'bg-amber-400 text-slate-950 w-8 h-7 shadow-md'
+                          : isMastered
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 w-7 h-7'
+                          : 'bg-slate-800 text-slate-400 w-7 h-7'
                       }`}
                     >
-                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-sky-400" />}
-                      <span>{isListening ? 'Dinliyor... Durdur' : '🎙️ Mikrofonla Telaffuz Et'}</span>
+                      {isMastered ? '✓' : idx + 1}
                     </button>
+                  );
+                })}
+              </div>
 
-                    <button
-                      onClick={() => {
-                        sounds.playCorrect();
-                        setSpellingSuccess(true);
-                        setMasteredLearnIndices(prev => Array.from(new Set([...prev, learningCardIndex])));
-                      }}
-                      className="px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
-                      title="Biliyorum, Ezberledim Olarak İşaretle"
-                    >
-                      ✓ Ezberledim
-                    </button>
+              {/* Masterclass Card Body */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                
+                {/* Left Column: Word Identity, Meaning & Memory Trick */}
+                <div className="p-5 sm:p-6 rounded-3xl bg-slate-950 border border-slate-800 shadow-xl space-y-4">
+                  
+                  {/* Word & Audio */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-slate-500">
+                        {currentLearnWord.partOfSpeech || 'Kelime'} • {scenario.level}
+                      </span>
+                      {masteredLearnIndices.includes(learningCardIndex) && (
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Zihne Kazındı
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-3xl sm:text-4xl font-black text-white font-heading tracking-tight">
+                        {currentLearnWord.targetWord}
+                      </h3>
+                      
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            sounds.playClick();
+                            speakEnglish(currentLearnWord.targetWord);
+                          }}
+                          className="p-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-600/30 transition-all cursor-pointer"
+                          title="Normal Hızda Dinle"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            sounds.playClick();
+                            speakEnglishSlow(currentLearnWord.targetWord);
+                          }}
+                          className="p-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 transition-all cursor-pointer text-xs"
+                          title="Yavaş Tane Tane Dinle"
+                        >
+                          🐢
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-slate-400 font-mono text-xs">{currentLearnWord.targetWordPhonetic}</p>
                   </div>
 
-                  {speechFeedback && (
-                    <p className="text-[11px] font-bold text-center mt-2 text-sky-300 animate-pop-in">
-                      {speechFeedback}
-                    </p>
+                  {/* Meaning */}
+                  <div className="py-2.5 px-4 rounded-2xl bg-slate-900 border border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Türkçe Anlamı</span>
+                    <h4 className="text-xl font-black text-amber-300 mt-0.5">{currentLearnWord.targetWordTr}</h4>
+                  </div>
+
+                  {/* Memory Mnemonic Clue */}
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left text-xs flex items-start gap-2.5">
+                    <Lightbulb className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-amber-300">💡 Hafıza Şifresi:</span>
+                      <p className="text-slate-200 mt-0.5 leading-relaxed font-medium">{currentLearnWord.mnemonic}</p>
+                    </div>
+                  </div>
+
+                  {/* Grammar Pattern */}
+                  {currentLearnWord.grammarPattern && (
+                    <div className="p-3.5 rounded-2xl bg-sky-950/40 border border-sky-800/40 text-left text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-sky-400 uppercase tracking-wider">
+                          🧠 Cümle Kalıbı Formülü:
+                        </span>
+                        <button
+                          onClick={() => setShowGrammarTip(!showGrammarTip)}
+                          className="text-[10px] text-sky-300 hover:underline cursor-pointer"
+                        >
+                          {showGrammarTip ? 'Gizle ▲' : 'Detayı Gör ▼'}
+                        </button>
+                      </div>
+                      <p className="text-white font-mono font-bold bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-800">
+                        {currentLearnWord.grammarPattern}
+                      </p>
+                      {showGrammarTip && currentLearnWord.grammarExplanation && (
+                        <p className="text-slate-300 text-[11px] pt-1.5 leading-relaxed">
+                          {currentLearnWord.grammarExplanation}
+                        </p>
+                      )}
+                    </div>
                   )}
+
+                </div>
+
+                {/* Right Column: Interactive Practice: Letter Scramble & Microphone */}
+                <div className="p-5 sm:p-6 rounded-3xl bg-slate-950 border border-slate-800 shadow-xl flex flex-col justify-between space-y-4">
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="text-xs font-black text-white flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        Kelimeni Pratik Et (Yaz & Konuş)
+                      </span>
+                      <span className="text-[10px] text-slate-400">Harfleri sırayla diz</span>
+                    </div>
+
+                    {/* Scramble Letter Target Slot */}
+                    <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Harf Dizilişi:</span>
+                      <div className="min-h-[42px] flex items-center justify-center gap-1.5 flex-wrap">
+                        {currentLearnWord.targetWord.toUpperCase().split('').map((char, idx) => {
+                          const typedChar = spellingInput[idx];
+                          return (
+                            <div
+                              key={idx}
+                              className={`w-9 h-10 rounded-xl flex items-center justify-center font-mono font-black text-lg border-2 transition-all ${
+                                typedChar
+                                  ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                                  : 'bg-slate-950 border-slate-800 text-slate-600'
+                              }`}
+                            >
+                              {typedChar || '_'}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Scrambled Clickable Letter Tiles */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Harflere tıkla:</span>
+                        <button
+                          onClick={handleResetSpelling}
+                          className="text-amber-400 hover:text-amber-300 underline cursor-pointer text-[10px]"
+                        >
+                          Sıfırla ↺
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {scrambledLetters.map((item) => (
+                          <button
+                            key={item.id}
+                            disabled={item.used || spellingSuccess}
+                            onClick={() => handleLetterClick(item)}
+                            className={`w-10 h-10 rounded-xl font-black text-base transition-all cursor-pointer active:scale-90 ${
+                              item.used
+                                ? 'bg-slate-900 text-slate-700 border border-slate-800 opacity-30 cursor-not-allowed'
+                                : 'bg-slate-800 hover:bg-sky-600 border border-slate-700 hover:border-sky-400 text-white shadow-md'
+                            }`}
+                          >
+                            {item.letter}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Success Banner */}
+                    {spellingSuccess && (
+                      <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-pop-in flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Harika! Yazım hafızana kodlandı (+20 XP, +£2).</span>
+                      </div>
+                    )}
+
+                    {/* Microphone Practice Button */}
+                    <div className="pt-2 border-t border-slate-800">
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => handleToggleVoiceInput(true)}
+                          className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                            isListening
+                              ? 'bg-rose-600 border-rose-500 text-white animate-pulse'
+                              : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200'
+                          }`}
+                        >
+                          {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-sky-400" />}
+                          <span>{isListening ? 'Dinliyor... Durdur' : '🎙️ Mikrofonla Telaffuz Et (+25 XP)'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            sounds.playCorrect();
+                            sounds.playCoin();
+                            setSpellingSuccess(true);
+                            setMasteredLearnIndices((prev) => Array.from(new Set([...prev, learningCardIndex])));
+                            onRewardXP(15, 1);
+                          }}
+                          className="px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
+                          title="Biliyorum, Ezberledim Olarak İşaretle"
+                        >
+                          ✓ Ezberledim
+                        </button>
+                      </div>
+
+                      {speechFeedback && (
+                        <p className="text-[11px] font-bold text-center mt-2 text-sky-300 animate-pop-in">
+                          {speechFeedback}
+                        </p>
+                      )}
+                    </div>
+
+                  </div>
+
+                  {/* Usage In Sentence Preview with Interactive Tap-to-Translate */}
+                  <div className="p-3.5 rounded-2xl bg-sky-950/20 border border-sky-900/40 text-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-sky-400">
+                      Diyalogda Nasıl Geçecek? (Kelimelere tıklayıp anlamlarına bakabilirsin):
+                    </span>
+                    <p className="text-white font-semibold">
+                      <InteractiveWordText text={currentLearnWord.sentenceFilled} highlightWord={currentLearnWord.targetWord} />
+                    </p>
+                    <p className="text-slate-400 text-[11px]">{currentLearnWord.sentenceTr}</p>
+                  </div>
+
                 </div>
 
               </div>
 
-              {/* Usage In Sentence Preview with Interactive Tap-to-Translate */}
-              <div className="p-3.5 rounded-2xl bg-sky-950/20 border border-sky-900/40 text-xs space-y-1">
-                <span className="text-[10px] font-bold uppercase text-sky-400">
-                  Diyalogda Nasıl Geçecek? (Kelimelere tıklayıp anlamlarına bakabilirsin):
+              {/* Stepper Footer Controls */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <button
+                  disabled={learningCardIndex === 0}
+                  onClick={() => setLearningCardIndex((prev) => prev - 1)}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    learningCardIndex === 0
+                      ? 'bg-slate-900 text-slate-600 border-slate-800 opacity-40 cursor-not-allowed'
+                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 cursor-pointer'
+                  }`}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Önceki Kelime</span>
+                </button>
+
+                {learningCardIndex + 1 < safeTurns.length ? (
+                  <button
+                    onClick={() => setLearningCardIndex((prev) => prev + 1)}
+                    className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
+                  >
+                    <span>Sıradaki Kelimeyi Kodla ({learningCardIndex + 2}/5)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartDialogue}
+                    className="flex items-center gap-2 px-7 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 hover:from-amber-400 hover:to-pink-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-xl shadow-orange-500/25 transition-all cursor-pointer active:scale-95 ring-2 ring-amber-400/40"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>5 Kelimeyi de Kodladım! Canlı Konuşmaya Başla 💬</span>
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Sub-tab B: 30-Second Rapid Match Mini-Game */}
+          {step1SubTab === 'MATCH_GAME' && (
+            <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 shadow-2xl space-y-6 text-center animate-pop-in">
+              <div className="space-y-1">
+                <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-black uppercase">
+                  ⚡ 30 Saniye Hızlı Eşleştirme Meydan Okuması
                 </span>
-                <p className="text-white font-semibold">
-                  <InteractiveWordText text={currentLearnWord.sentenceFilled} highlightWord={currentLearnWord.targetWord} />
+                <h3 className="text-2xl font-black text-white font-heading">
+                  İngilizce Kelimeleri Türkçe Karşılıklarıyla Eşleştir!
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Önce İngilizce kelimeye tıkla, sonra Türkçe anlamına basarak çiftleri erit!
                 </p>
-                <p className="text-slate-400 text-[11px]">{currentLearnWord.sentenceTr}</p>
               </div>
 
+              <div className="grid grid-cols-2 gap-4 max-w-xl mx-auto">
+                {/* English Column */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-sky-400 uppercase">İngilizce</span>
+                  {safeTurns.map((turn) => {
+                    const isMatched = matchedPairs.includes(turn.targetWord);
+                    const isSelected = matchSelectedEn === turn.targetWord;
+
+                    return (
+                      <button
+                        key={turn.id}
+                        disabled={isMatched}
+                        onClick={() => handleMatchWord(turn.targetWord)}
+                        className={`w-full p-3 rounded-2xl font-bold text-sm transition-all cursor-pointer ${
+                          isMatched
+                            ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 opacity-40'
+                            : isSelected
+                            ? 'bg-sky-600 text-white ring-2 ring-sky-400 shadow-lg'
+                            : 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white'
+                        }`}
+                      >
+                        {turn.targetWord} {isMatched && '✓'}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Turkish Column (Shuffled) */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-amber-400 uppercase">Türkçe Anlamı</span>
+                  {[...safeTurns]
+                    .sort((a, b) => a.targetWordTr.localeCompare(b.targetWordTr))
+                    .map((turn) => {
+                      const isMatched = matchedPairs.includes(turn.targetWord);
+
+                      return (
+                        <button
+                          key={turn.id}
+                          disabled={isMatched}
+                          onClick={() => handleMatchTr(turn.targetWordTr)}
+                          className={`w-full p-3 rounded-2xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                            isMatched
+                              ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 opacity-40'
+                              : 'bg-slate-900 hover:bg-amber-600/20 border border-slate-800 hover:border-amber-500 text-slate-200'
+                          }`}
+                        >
+                          {turn.targetWordTr} {isMatched && '✓'}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {matchedPairs.length === safeTurns.length && (
+                <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold space-y-2 animate-pop-in">
+                  <p>🎉 Tebrikler! Tüm kelimeleri başarıyla eşleştirdin (+75 XP, +£10)!</p>
+                  <button
+                    onClick={handleStartDialogue}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase cursor-pointer"
+                  >
+                    Canlı Konuşmaya Geç 💬
+                  </button>
+                </div>
+              )}
             </div>
-
-          </div>
-
-          {/* Stepper Footer Controls */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            <button
-              disabled={learningCardIndex === 0}
-              onClick={() => setLearningCardIndex(prev => prev - 1)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                learningCardIndex === 0
-                  ? 'bg-slate-900 text-slate-600 border-slate-800 opacity-40 cursor-not-allowed'
-                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 cursor-pointer'
-              }`}
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Önceki Kelime</span>
-            </button>
-
-            {learningCardIndex + 1 < safeTurns.length ? (
-              <button
-                onClick={() => setLearningCardIndex(prev => prev + 1)}
-                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
-              >
-                <span>Sıradaki Kelimeyi Kodla ({learningCardIndex + 2}/5)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={handleStartDialogue}
-                className="flex items-center gap-2 px-7 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 hover:from-amber-400 hover:to-pink-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-xl shadow-orange-500/25 transition-all cursor-pointer active:scale-95 ring-2 ring-amber-400/40"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>5 Kelimeyi de Kodladım! Canlı Konuşmaya Başla (2. Adım) 💬</span>
-              </button>
-            )}
-          </div>
+          )}
 
         </div>
       )}
 
-      {/* ================= STEP 2: GERÇEK CANLI DİYALOG (LIVING CONVERSATION) ================= */}
+      {/* ================= STEP 2: GERÇEK CANLI DİYALOG ================= */}
       {mode === 'DIALOGUE' && (
         <>
-          {/* Conversation Stream Tools: Ear Training Toggle & Sentence Builder Toggle */}
-          <div className="bg-slate-950/80 px-5 py-2 border-b border-slate-800 flex items-center justify-between text-xs">
-            <button
-              onClick={() => {
-                sounds.playClick();
-                setEarTrainingHideText(!earTrainingHideText);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border transition-all cursor-pointer ${
-                earTrainingHideText
-                  ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-              }`}
-              title="Memurun sözlerini gizleyip önce sadece kulakla anlamaya çalışın"
-            >
-              <Headphones className="w-3.5 h-3.5" />
-              <span>{earTrainingHideText ? '🎧 Kulak Eğitimi Açık (Yazı Gizli)' : '🎧 Kulak Eğitimi Modu'}</span>
-            </button>
+          {/* Conversation Stream Tools: Ear Training Toggle, Adrenaline Timer & Sentence Builder */}
+          <div className="bg-slate-950/80 px-5 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+            
+            {/* Ear Training & Adrenaline Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  setEarTrainingHideText(!earTrainingHideText);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                  earTrainingHideText
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+                title="Memurun sözlerini gizleyip önce sadece kulakla anlamaya çalışın"
+              >
+                <Headphones className="w-3.5 h-3.5" />
+                <span>{earTrainingHideText ? '🎧 Kulak Eğitimi Açık' : '🎧 Kulak Eğitimi'}</span>
+              </button>
 
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  setIsAdrenalineMode(!isAdrenalineMode);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                  isAdrenalineMode
+                    ? 'bg-rose-500/20 border-rose-400 text-rose-300 font-bold animate-pulse'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+                title="15 saniyelik gerçek zamanlı heyecan modu"
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>{isAdrenalineMode ? `⏱️ ${timeLeft}sn Kaldı` : '⏱️ Adrenalin Süresi'}</span>
+              </button>
+            </div>
+
+            {/* Answer Input Mode: Fill blank vs Sentence builder */}
             <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[11px]">
               <button
                 onClick={() => setDialogueInputMode('FILL_BLANK')}
@@ -828,6 +1176,18 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
             </div>
           </div>
 
+          {/* Adrenaline countdown progress bar */}
+          {isAdrenalineMode && (
+            <div className="w-full h-1 bg-slate-950">
+              <div
+                className={`h-full transition-all duration-1000 ${
+                  timeLeft <= 5 ? 'bg-rose-500' : 'bg-sky-500'
+                }`}
+                style={{ width: `${(timeLeft / 18) * 100}%` }}
+              />
+            </div>
+          )}
+
           {/* Conversation Chat Stream */}
           <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 max-h-[340px]">
             {messages.map((msg, idx) => {
@@ -842,7 +1202,9 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                   }`}
                 >
                   {msg.speaker === 'NPC' && (
-                    <span className="text-2xl mt-1 select-none flex-shrink-0">{scenario.npcAvatar}</span>
+                    <span className="text-2xl mt-1 select-none flex-shrink-0">
+                      {isLatestNpc ? officerMoodDetails.avatar : scenario.npcAvatar}
+                    </span>
                   )}
 
                   <div
@@ -979,7 +1341,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                         }`}
                       >
                         {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                        <span>{isListening ? 'Dinleniyor...' : '🎙️ Sesli Söyle'}</span>
+                        <span>{isListening ? 'Dinleniyor...' : '🎙️ Sesli Söyle (+30 XP)'}</span>
                       </button>
                     </div>
 
@@ -996,7 +1358,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                     </div>
 
                     {speechFeedback && (
-                      <p className="text-[11px] font-bold text-center text-sky-300">
+                      <p className="text-[11px] font-bold text-center text-sky-300 animate-pop-in">
                         {speechFeedback}
                       </p>
                     )}

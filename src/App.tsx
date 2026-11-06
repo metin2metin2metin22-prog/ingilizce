@@ -9,8 +9,8 @@ import { PassportModal } from './components/PassportModal';
 import { DeportedModal } from './components/DeportedModal';
 import { sounds } from './utils/audio';
 
-const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v8';
-const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v8';
+const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v9';
+const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v9';
 
 const INITIAL_PASSPORT: PlayerPassport = {
   travelerName: 'Yolcu (Explorer)',
@@ -19,6 +19,9 @@ const INITIAL_PASSPORT: PlayerPassport = {
   currentScenarioIndex: 0,
   stampsCount: 0,
   masteredWords: [],
+  xp: 35,
+  streak: 1,
+  rank: 'Çaylak Yolcu',
 };
 
 export function App() {
@@ -30,7 +33,7 @@ export function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (typeof parsed.currentScenarioIndex === 'number') {
-          return parsed;
+          return { ...INITIAL_PASSPORT, ...parsed };
         }
       }
     } catch {}
@@ -70,11 +73,33 @@ export function App() {
     } catch {}
   }, [safeScenarios]);
 
+  // Handle XP & Cash Reward
+  const handleRewardXP = (xpGain: number, poundsGain: number) => {
+    setPassport((prev) => {
+      const nextXP = (prev.xp || 0) + xpGain;
+      const nextPounds = (prev.cashPounds || 0) + poundsGain;
+      const nextStreak = (prev.streak || 0) + 1;
+      let nextRank = 'Çaylak Yolcu';
+      if (nextXP >= 800) nextRank = 'Diplomat 👑';
+      else if (nextXP >= 400) nextRank = 'Yerli Londralı 🏛️';
+      else if (nextXP >= 200) nextRank = 'Akıcı Konuşmacı ⚡';
+      else if (nextXP >= 80) nextRank = 'Londra Gezgini 🎒';
+
+      return {
+        ...prev,
+        xp: nextXP,
+        cashPounds: nextPounds,
+        streak: nextStreak,
+        rank: nextRank,
+      };
+    });
+  };
+
   // Handle warning loss
   const handleLoseWarning = () => {
     setPassport((prev) => {
       const nextWarnings = Math.max(0, prev.warningsLeft - 1);
-      return { ...prev, warningsLeft: nextWarnings };
+      return { ...prev, warningsLeft: nextWarnings, streak: 0 };
     });
   };
 
@@ -122,6 +147,7 @@ export function App() {
     setPassport((prev) => ({
       ...prev,
       warningsLeft: 3,
+      streak: 0,
     }));
     setIsDeportedOpen(false);
   };
@@ -161,6 +187,7 @@ export function App() {
             onScenarioCompleted={handleScenarioCompleted}
             onDeported={handleDeported}
             onNextScenario={handleNextScenario}
+            onRewardXP={handleRewardXP}
           />
         ) : (
           <FlashcardsView

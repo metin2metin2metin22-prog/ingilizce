@@ -1,4 +1,4 @@
-// Audio Engine: Airport chimes, Passport stamps, dialogue sounds, Web Speech Synthesis & Recognition
+// Audio Engine: Airport chimes, Passport stamps, dialogue sounds, Combos, Heartbeats & Web Speech
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -129,6 +129,105 @@ class SoundEngine {
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.28);
+    } catch {}
+  }
+
+  // Satisfying Combo Streak Chime (Ascending Pitch based on combo count)
+  playCombo(combo: number) {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const baseFreq = 440 * Math.pow(1.12, Math.min(combo, 8)); // A4 + ascending
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, ctx.currentTime + 0.15);
+
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch {}
+  }
+
+  // Cash Coin Sound (+£ Pounds)
+  playCoin() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(987.77, ctx.currentTime); // B5
+      osc2.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.06); // E6
+
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.06);
+      osc2.start(ctx.currentTime + 0.06);
+      osc2.stop(ctx.currentTime + 0.35);
+    } catch {}
+  }
+
+  // Tense Heartbeat (Interrogation Tension)
+  playHeartbeat() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      [0, 0.14].forEach((delay) => {
+        const time = ctx.currentTime + delay;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(70, time);
+        osc.frequency.exponentialRampToValueAtTime(35, time + 0.1);
+
+        gain.gain.setValueAtTime(0.35, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.1);
+      });
+    } catch {}
+  }
+
+  // Level Up / Milestone Fanfare
+  playLevelUp() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      notes.forEach((freq, idx) => {
+        const time = ctx.currentTime + idx * 0.1;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.25, time + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.4);
+      });
     } catch {}
   }
 }

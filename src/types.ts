@@ -18,6 +18,8 @@ export interface DialogueTurn {
   sentenceTr: string;           // "Ziyaretimin amacı turizm ve şehri gezmektir."
   wordOptions: string[];        // ["Purpose", "Declare", "Address", "Return"]
   sentenceTokens?: string[];    // ["The", "purpose", "of", "my", "visit", "is", "tourism", "and", "sightseeing."]
+  officerReactionAngry?: string;    // e.g. "Memur kaşlarını çattı: 'Cevabınız şüphe uyandırıyor!'"
+  officerReactionImpressed?: string;// e.g. "Memur başını salladı: 'Harika bir İngilizce, hoş geldiniz.'"
 }
 
 export interface DialogueScenario {
@@ -30,6 +32,7 @@ export interface DialogueScenario {
   introDescription: string;
   turns: DialogueTurn[];
   stamped: boolean;
+  backgroundTheme?: string;
 }
 
 export interface PlayerPassport {
@@ -39,4 +42,7 @@ export interface PlayerPassport {
   currentScenarioIndex: number;
   stampsCount: number;
   masteredWords: string[];
+  xp: number;
+  streak: number;
+  rank: string;
 }
