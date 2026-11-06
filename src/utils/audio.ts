@@ -1,4 +1,4 @@
-// Audio Engine: Airport chimes, Passport stamps, dialogue sounds & Speech
+// Audio Engine: Airport chimes, Passport stamps, dialogue sounds, Web Speech Synthesis & Recognition
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -87,7 +87,7 @@ class SoundEngine {
     } catch {}
   }
 
-  // Interrogation Warning / Error Buzz
+  // Warning Buzz
   playWarning() {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -155,4 +155,75 @@ export function speakEnglish(text: string, rate: number = 0.88) {
 
 export function speakEnglishSlow(text: string) {
   speakEnglish(text, 0.6);
+}
+
+// ================= WEB SPEECH RECOGNITION (VOICE MIC INPUT) =================
+interface IWindowWithSpeech extends Window {
+  SpeechRecognition?: any;
+  webkitSpeechRecognition?: any;
+}
+
+export function isSpeechRecognitionSupported(): boolean {
+  if (typeof window === 'undefined') return false;
+  const win = window as unknown as IWindowWithSpeech;
+  return Boolean(win.SpeechRecognition || win.webkitSpeechRecognition);
+}
+
+let activeRecognition: any = null;
+
+export function startSpeechRecognition(
+  onResult: (spokenText: string) => void,
+  onError?: (errorMessage: string) => void,
+  onEnd?: () => void
+): boolean {
+  if (!isSpeechRecognitionSupported()) {
+    if (onError) onError('Tarayıcınız mikrofon ses tanıma özelliğini desteklemiyor.');
+    return false;
+  }
+
+  try {
+    const win = window as unknown as IWindowWithSpeech;
+    const SpeechRec = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (activeRecognition) {
+      try {
+        activeRecognition.abort();
+      } catch {}
+    }
+
+    const recognition = new SpeechRec();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      onResult(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      if (onError) onError(event.error || 'Ses algılanamadı.');
+    };
+
+    recognition.onend = () => {
+      activeRecognition = null;
+      if (onEnd) onEnd();
+    };
+
+    recognition.start();
+    activeRecognition = recognition;
+    return true;
+  } catch (err: any) {
+    if (onError) onError(err?.message || 'Mikrofon başlatılamadı.');
+    return false;
+  }
+}
+
+export function stopSpeechRecognition() {
+  if (activeRecognition) {
+    try {
+      activeRecognition.stop();
+    } catch {}
+    activeRecognition = null;
+  }
 }

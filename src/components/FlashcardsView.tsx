@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { DialogueScenario, Level } from '../types';
 import { 
-  Volume2, Search, Sparkles, Lightbulb, CheckCircle2, 
-  Lock, MessageSquare, ArrowRight, BookOpen, Layers
+  Volume2, Search, Lightbulb, CheckCircle2, 
+  Lock, MessageSquare, Layers, BookOpen, Sparkles
 } from 'lucide-react';
 import { sounds, speakEnglish, speakEnglishSlow } from '../utils/audio';
+import { InteractiveWordText } from './InteractiveWordText';
 
 interface FlashcardsViewProps {
   scenarios: DialogueScenario[];
@@ -32,6 +33,9 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
         word: turn.targetWord,
         translation: turn.targetWordTr,
         phonetic: turn.targetWordPhonetic,
+        partOfSpeech: turn.partOfSpeech,
+        grammarPattern: turn.grammarPattern,
+        grammarExplanation: turn.grammarExplanation,
         mnemonic: turn.mnemonic,
         exampleEn: turn.sentenceFilled,
         exampleTr: turn.sentenceTr,
@@ -78,10 +82,10 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
           <div>
             <h3 className="text-lg font-black text-white font-heading flex items-center gap-2">
               <Layers className="w-5 h-5 text-sky-400" />
-              Kelime Bilgi Kartları (Flashcards)
+              Kelime ve Cümle Kalıbı Kütüphanesi (A1 - B2)
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Tüm A1-A2-B1-B2 kelimelerini incele, telaffuzlarını dinle ve diyaloglarda pratik yap.
+              Tüm kelimeleri gramer kalıbı, hafıza şifresi ve telaffuzlarıyla incele. Cümledeki herhangi bir kelimeye tıklayıp anlamını görebilirsin.
             </p>
           </div>
 
@@ -162,9 +166,16 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
             >
               {/* Card Header: Level & Status */}
               <div className="flex items-center justify-between mb-3">
-                <span className={`px-2.5 py-0.5 rounded-lg border text-[11px] font-black uppercase ${currentStyle.badge}`}>
-                  {card.level} Kademesi
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-lg border text-[11px] font-black uppercase ${currentStyle.badge}`}>
+                    {card.level}
+                  </span>
+                  {card.partOfSpeech && (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {card.partOfSpeech}
+                    </span>
+                  )}
+                </div>
 
                 {isMastered ? (
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
@@ -223,9 +234,19 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
                   </p>
                 </div>
 
-                {/* Example sentence */}
+                {/* Grammar Pattern */}
+                {card.grammarPattern && (
+                  <div className="p-2.5 rounded-xl bg-sky-950/30 border border-sky-800/30 text-[11px] space-y-0.5">
+                    <span className="text-[10px] font-bold text-sky-400 uppercase">Gramer Kalıbı:</span>
+                    <p className="text-slate-200 font-mono font-semibold">{card.grammarPattern}</p>
+                  </div>
+                )}
+
+                {/* Example sentence with Interactive Tap-to-Translate */}
                 <div className="text-[11px] space-y-0.5 pt-1">
-                  <p className="text-slate-200 italic font-semibold leading-relaxed">"{card.exampleEn}"</p>
+                  <p className="text-slate-200 italic font-semibold leading-relaxed">
+                    <InteractiveWordText text={card.exampleEn} highlightWord={card.word} />
+                  </p>
                   <p className="text-slate-400 leading-relaxed">{card.exampleTr}</p>
                 </div>
               </div>

@@ -8,12 +8,16 @@ export interface DialogueTurn {
   targetWord: string;
   targetWordTr: string;
   targetWordPhonetic: string;
+  partOfSpeech?: string;
   mnemonic: string;
-  playerPromptTr: string; // "Memura ziyaret amacının turizm olduğunu söyle"
-  sentenceWithBlank: string; // "The [ _____ ] of my visit is tourism and sightseeing."
-  sentenceFilled: string;   // "The purpose of my visit is tourism and sightseeing."
-  sentenceTr: string;       // "Ziyaretimin amacı turizm ve şehri gezmektir."
-  wordOptions: string[];    // ["Purpose", "Declare", "Address", "Return"]
+  grammarPattern?: string;       // e.g. "The purpose of [X] is [Y]"
+  grammarExplanation?: string;   // e.g. "Bir ziyaretin ya da eylemin amacını resmi ve net belirtirken 'The purpose of ... is ...' kalıbı kullanılır."
+  playerPromptTr: string;        // "Memura seyahat amacının turizm olduğunu söylemek için boşluğu doldur"
+  sentenceWithBlank: string;    // "The [ _____ ] of my visit is tourism and sightseeing."
+  sentenceFilled: string;       // "The purpose of my visit is tourism and sightseeing."
+  sentenceTr: string;           // "Ziyaretimin amacı turizm ve şehri gezmektir."
+  wordOptions: string[];        // ["Purpose", "Declare", "Address", "Return"]
+  sentenceTokens?: string[];    // ["The", "purpose", "of", "my", "visit", "is", "tourism", "and", "sightseeing."]
 }
 
 export interface DialogueScenario {

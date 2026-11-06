@@ -9,8 +9,8 @@ import { PassportModal } from './components/PassportModal';
 import { DeportedModal } from './components/DeportedModal';
 import { sounds } from './utils/audio';
 
-const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v7';
-const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v7';
+const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v8';
+const STORAGE_KEY_SCENARIOS = 'londondialogue_scenarios_v8';
 
 const INITIAL_PASSPORT: PlayerPassport = {
   travelerName: 'Yolcu (Explorer)',
@@ -42,7 +42,7 @@ export function App() {
       const saved = localStorage.getItem(STORAGE_KEY_SCENARIOS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed[0]?.turns?.[0]?.sentenceWithBlank) {
+        if (Array.isArray(parsed) && parsed[0]?.turns?.[0]?.grammarPattern) {
           return parsed;
         }
       }
@@ -139,23 +139,22 @@ export function App() {
         onOpenPassport={() => setIsPassportOpen(true)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-6 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pt-6 space-y-6">
         
-        {/* City Dialogue Roadmap */}
+        {/* London Survival Roadmap / Progress Bar */}
         <SurvivalRoadmap
           scenarios={safeScenarios}
           currentIndex={passport.currentScenarioIndex}
           onSelectScenario={(idx) => {
+            sounds.playClick();
             setPassport((prev) => ({ ...prev, currentScenarioIndex: idx }));
-            setActiveView('DIALOGUE');
           }}
         />
 
-        {/* View 1: Living Interactive Dialogue */}
-        {activeView === 'DIALOGUE' && (
+        {/* View Switcher: Dialogue vs Flashcards */}
+        {activeView === 'DIALOGUE' ? (
           <InteractiveDialogue
-            key={`${currentScenario.id}-${passport.currentScenarioIndex}`}
+            key={currentScenario.id}
             scenario={currentScenario}
             warningsLeft={passport.warningsLeft}
             onLoseWarning={handleLoseWarning}
@@ -163,10 +162,7 @@ export function App() {
             onDeported={handleDeported}
             onNextScenario={handleNextScenario}
           />
-        )}
-
-        {/* View 2: Dedicated A1-A2-B1-B2 Flashcards Library */}
-        {activeView === 'FLASHCARDS' && (
+        ) : (
           <FlashcardsView
             scenarios={safeScenarios}
             masteredWords={passport.masteredWords}
@@ -176,7 +172,7 @@ export function App() {
 
       </main>
 
-      {/* Passport & Learned Words Modal */}
+      {/* Modals */}
       <PassportModal
         passport={passport}
         scenarios={safeScenarios}
@@ -184,12 +180,20 @@ export function App() {
         onClose={() => setIsPassportOpen(false)}
       />
 
-      {/* Detention / Deported Modal */}
       <DeportedModal
         isOpen={isDeportedOpen}
         onRestart={handleRestartAfterDeport}
       />
 
+      {/* Footer Info */}
+      <footer className="mt-12 text-center text-xs text-slate-500 py-4 border-t border-slate-900 space-y-1">
+        <p>🇬🇧 London Survival Simulator • Gerçek Hayatta Kalma İngilizcesi & CEFR A1 - B2 Kelime Sistemi</p>
+        <p className="text-[11px] text-slate-600">
+          Tüm diyalog cümlelerindeki kelimelerin üzerine tıklayarak Türkçe anlamlarını ve telaffuzlarını anında görebilirsiniz.
+        </p>
+      </footer>
+
     </div>
   );
 }
+export default App;
