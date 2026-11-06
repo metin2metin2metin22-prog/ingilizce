@@ -7,6 +7,7 @@ import { InteractiveDialogue } from './components/InteractiveDialogue';
 import { FlashcardsView } from './components/FlashcardsView';
 import { PassportModal } from './components/PassportModal';
 import { DeportedModal } from './components/DeportedModal';
+import { HowToPlayModal } from './components/HowToPlayModal';
 import { sounds } from './utils/audio';
 
 const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v10';
@@ -55,6 +56,7 @@ export function App() {
 
   const [isPassportOpen, setIsPassportOpen] = useState<boolean>(false);
   const [isDeportedOpen, setIsDeportedOpen] = useState<boolean>(false);
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
 
   // Active scenario
   const safeScenarios = scenarios.length > 0 ? scenarios : DIALOGUE_SCENARIOS;
@@ -163,6 +165,7 @@ export function App() {
         activeView={activeView}
         onChangeView={setActiveView}
         onOpenPassport={() => setIsPassportOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pt-6 space-y-6">
@@ -211,6 +214,11 @@ export function App() {
       <DeportedModal
         isOpen={isDeportedOpen}
         onRestart={handleRestartAfterDeport}
+      />
+
+      <HowToPlayModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
 
       {/* Footer Info */}

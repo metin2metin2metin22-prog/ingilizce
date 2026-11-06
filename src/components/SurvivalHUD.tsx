@@ -13,6 +13,7 @@ interface SurvivalHUDProps {
   activeView: 'DIALOGUE' | 'FLASHCARDS';
   onChangeView: (view: 'DIALOGUE' | 'FLASHCARDS') => void;
   onOpenPassport: () => void;
+  onOpenGuide: () => void;
 }
 
 export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
@@ -22,6 +23,7 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
   activeView,
   onChangeView,
   onOpenPassport,
+  onOpenGuide,
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(sounds.muted);
 
@@ -161,6 +163,18 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
           >
             <Stamp className="w-3.5 h-3.5" />
             <span>Pasaport ({passport.stampsCount}/4)</span>
+          </button>
+
+          {/* Guide / Help Button */}
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onOpenGuide();
+            }}
+            className="p-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-sky-400 hover:text-white transition-all cursor-pointer font-bold text-xs"
+            title="Nasıl Oynanır & Dil Öğrenme Rehberi"
+          >
+            ❓
           </button>
 
           {/* Sound Toggle */}

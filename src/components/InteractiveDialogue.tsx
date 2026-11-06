@@ -196,6 +196,34 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     };
   }, []);
 
+  // Keyboard Navigation Listener (Keys 1-4, M for mic, R for audio)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+
+      if (mode === 'DIALOGUE' && dialogueInputMode === 'FILL_BLANK' && currentTurn) {
+        const options = currentTurn.optionsDetails || currentTurn.wordOptions.map(w => ({ word: w }));
+        if (e.key === '1' && options[0]) {
+          handleSelectWord(options[0].word);
+        } else if (e.key === '2' && options[1]) {
+          handleSelectWord(options[1].word);
+        } else if (e.key === '3' && options[2]) {
+          handleSelectWord(options[2].word);
+        } else if (e.key === '4' && options[3]) {
+          handleSelectWord(options[3].word);
+        } else if (e.key.toLowerCase() === 'm') {
+          handleToggleVoiceInput(false);
+        } else if (e.key.toLowerCase() === 'r') {
+          speakEnglish(currentTurn.audioText);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, dialogueInputMode, currentTurnIndex, currentTurn]);
+
   // Time expired in Adrenaline Mode
   const handleTimeExpired = () => {
     sounds.playWarning();
@@ -1410,13 +1438,32 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                       </button>
                     </div>
 
+                    {/* Animated Microphone Waveform */}
+                    {isListening && (
+                      <div className="p-2.5 rounded-2xl bg-rose-950/40 border border-rose-500/40 flex items-center justify-center gap-1.5 text-rose-400 font-mono text-sm animate-pulse">
+                        <span className="w-1.5 h-3 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-6 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-8 bg-rose-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <span className="w-1.5 h-5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '200ms' }} />
+                        <span className="w-1.5 h-2.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '100ms' }} />
+                        <span className="ml-2 font-bold text-xs text-white">Seni dinliyor... İngilizce söyle! 🎙️</span>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                       {(currentTurn.optionsDetails || currentTurn.wordOptions.map(w => ({ word: w, tr: '', reaction: '', isCorrect: w === currentTurn.targetWord }))).map((opt, idx) => (
                         <button
                           key={idx}
                           onClick={() => handleSelectWord(opt.word)}
-                          className="p-3 sm:p-3.5 rounded-2xl bg-slate-900 hover:bg-sky-600/20 border border-slate-800 hover:border-sky-500 text-white transition-all cursor-pointer text-center shadow-md active:scale-95 group"
+                          className="p-3 sm:p-3.5 rounded-2xl bg-slate-900 hover:bg-sky-600/20 border border-slate-800 hover:border-sky-500 text-white transition-all cursor-pointer text-center shadow-md active:scale-95 group relative"
                         >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono font-bold text-slate-400 group-hover:text-amber-300">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-[9px] text-slate-500 font-mono uppercase hidden sm:inline">Tuş [{idx + 1}]</span>
+                          </div>
+
                           <div className="font-black text-sm sm:text-base group-hover:text-amber-300 transition-colors">
                             {opt.word}
                           </div>
