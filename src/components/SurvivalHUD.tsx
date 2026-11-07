@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { PlayerPassport, Level } from '../types';
 import { 
   Plane, AlertTriangle, Banknote, BookOpen, Stamp, 
-  Volume2, VolumeX, Layers, MessageSquare, Flame, Trophy, Shield
+  Volume2, VolumeX, Layers, MessageSquare, Flame, Trophy, Shield,
+  Luggage, FileText, Sparkles
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -14,6 +15,9 @@ interface SurvivalHUDProps {
   onChangeView: (view: 'DIALOGUE' | 'FLASHCARDS') => void;
   onOpenPassport: () => void;
   onOpenGuide: () => void;
+  onOpenSlang: () => void;
+  onOpenDocs: () => void;
+  onOpenScanner: () => void;
 }
 
 export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
@@ -24,6 +28,9 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
   onChangeView,
   onOpenPassport,
   onOpenGuide,
+  onOpenSlang,
+  onOpenDocs,
+  onOpenScanner,
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(sounds.muted);
 
@@ -137,6 +144,45 @@ export const SurvivalHUD: React.FC<SurvivalHUDProps> = ({
         {/* Right Stats: Cash (£), Warnings & Passport */}
         <div className="flex items-center gap-2">
           
+          {/* Quick Survival Tools: Documents, X-Ray Game, Slang */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-2xl border border-slate-800">
+            <button
+              onClick={() => {
+                sounds.playPaperRustle();
+                onOpenDocs();
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/80 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-slate-700/60 hover:border-indigo-500/40 text-[11px] font-bold transition"
+              title="Resmi Seyahat Belgelerimi İncele"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Belgelerim</span>
+            </button>
+
+            <button
+              onClick={() => {
+                sounds.playScannerBeep();
+                onOpenScanner();
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/80 hover:bg-emerald-600/30 text-emerald-300 hover:text-white border border-slate-700/60 hover:border-emerald-500/40 text-[11px] font-bold transition"
+              title="Havalimanı Bagaj X-Ray Mini Oyunu"
+            >
+              <Luggage className="w-3.5 h-3.5" />
+              <span>X-Ray Oyunu</span>
+            </button>
+
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onOpenSlang();
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/80 hover:bg-amber-600/30 text-amber-300 hover:text-white border border-slate-700/60 hover:border-amber-500/40 text-[11px] font-bold transition"
+              title="İngiliz Sokak Dili & Deyimleri"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Deyimler</span>
+            </button>
+          </div>
+
           {/* Wallet (£ Cash) */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 font-bold text-xs shadow-inner">
             <Banknote className="w-4 h-4 text-emerald-400" />

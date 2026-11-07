@@ -5,7 +5,7 @@ import {
   Lightbulb, Stamp, ArrowRight, ArrowLeft, RotateCcw, 
   ShieldAlert, Award, BookOpen, GraduationCap, MessageSquare,
   Mic, MicOff, Headphones, Eye, CheckCircle2, Flame,
-  Timer, Zap, Shield, Plane, Banknote, HelpCircle
+  Timer, Zap, Shield, Plane, Banknote, HelpCircle, FileText
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -13,6 +13,7 @@ import {
   startSpeechRecognition, stopSpeechRecognition, isSpeechRecognitionSupported 
 } from '../utils/audio';
 import { InteractiveWordText } from './InteractiveWordText';
+import { DictationChallenge } from './DictationChallenge';
 
 interface InteractiveDialogueProps {
   scenario: DialogueScenario;
@@ -23,6 +24,7 @@ interface InteractiveDialogueProps {
   onDeported: () => void;
   onNextScenario: () => void;
   onRewardXP: (xp: number, pounds: number) => void;
+  onOpenDocs?: () => void;
 }
 
 interface ChatMessage {
@@ -46,6 +48,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   onDeported,
   onNextScenario,
   onRewardXP,
+  onOpenDocs,
 }) => {
   // Mode:
   // 1. 'LEARN': 5 kelimeyi harf dizme, hızlı eşleştirme ve sesli pratikle öğreten interaktif ders
@@ -62,8 +65,8 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const [masteredLearnIndices, setMasteredLearnIndices] = useState<number[]>([]);
   const [showGrammarTip, setShowGrammarTip] = useState<boolean>(false);
 
-  // Rapid Matching Mini-Game in Step 1
-  const [step1SubTab, setStep1SubTab] = useState<'SPELL' | 'MATCH_GAME'>('SPELL');
+  // Practice Mini-Games in Step 1
+  const [step1SubTab, setStep1SubTab] = useState<'SPELL' | 'DICTATION' | 'MATCH_GAME'>('SPELL');
   const [matchSelectedEn, setMatchSelectedEn] = useState<string | null>(null);
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
 
@@ -756,6 +759,44 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
 
       </div>
 
+      {/* Thematic Location Atmospheric Ticker */}
+      <div className="bg-slate-950/85 px-5 py-2 border-b border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400 overflow-x-auto">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+          <span className="text-slate-200 font-bold">
+            {scenario.level === 'A1' && '✈️ HEATHROW T5 • FLIGHT TK1985 (IST -> LHR) • IMMIGRATION DESK 4 • STATUS: ACTIVE'}
+            {scenario.level === 'A2' && '🚇 LONDON UNDERGROUND • KING\'S CROSS • MIND THE GAP • TICKET ARCHIVE'}
+            {scenario.level === 'B1' && '🌧️ LONDON SOHO • DEAN STREET • COFFEE & FLATSHARE INTERVIEW'}
+            {scenario.level === 'B2' && '🏙️ CANARY WHARF TOWER • LEVEL 34 • FTSE 100 STRATEGY BOARDROOM'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[10px] uppercase text-slate-500 font-mono">UK Immigrations Ops v4.8</span>
+        </div>
+      </div>
+
+      {/* Critical Suspicion Alarm Warning */}
+      {suspicionPercent >= 65 && (
+        <div className="bg-rose-950/90 border-b border-rose-500/60 px-5 py-2 text-xs font-bold text-rose-300 flex flex-wrap items-center justify-between gap-2 animate-pulse">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <span>🚨 POLİS ALARMI: Şüphe seviyesi kritik (%{suspicionPercent})! Bir sonraki yanlış cevapta vizeniz iptal edilir!</span>
+          </span>
+          {onOpenDocs && (
+            <button
+              onClick={() => {
+                sounds.playPaperRustle();
+                onOpenDocs();
+              }}
+              className="px-3 py-1 rounded-xl bg-rose-900/90 hover:bg-rose-800 text-white border border-rose-400/50 text-[11px] font-bold transition flex items-center gap-1 shadow-md"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>🎒 Çantamdaki Belgeleri Göster</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Dynamic Officer Reaction Banner */}
       {officerLiveReaction && (
         <div className={`px-5 py-2 text-xs font-bold flex items-center justify-between animate-pop-in ${
@@ -818,8 +859,8 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
               </div>
             </div>
 
-            {/* Sub-tab Switcher: Harf Dizme vs Hızlı Eşleştirme */}
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+            {/* Sub-tab Switcher: Harf Dizme vs Dikte vs Hızlı Eşleştirme */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
               <button
                 onClick={() => setStep1SubTab('SPELL')}
                 className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
@@ -827,6 +868,15 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                 }`}
               >
                 🧩 Harf Dizme
+              </button>
+              <button
+                onClick={() => setStep1SubTab('DICTATION')}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                  step1SubTab === 'DICTATION' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Headphones className="w-3.5 h-3.5 text-sky-200" />
+                <span>🎧 Dinle & Yaz (Dikte)</span>
               </button>
               <button
                 onClick={() => setStep1SubTab('MATCH_GAME')}
@@ -1152,7 +1202,90 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
             </>
           )}
 
-          {/* Sub-tab B: 30-Second Rapid Match Mini-Game */}
+          {/* Sub-tab B: Audio Dictation Station (Dinle & Yaz) */}
+          {step1SubTab === 'DICTATION' && (
+            <div className="space-y-5 animate-pop-in py-2">
+              {/* Stepper dots */}
+              <div className="flex items-center justify-center gap-1.5">
+                {safeTurns.map((turn, idx) => {
+                  const isMastered = masteredLearnIndices.includes(idx);
+                  const isCurrent = idx === learningCardIndex;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        sounds.playClick();
+                        setLearningCardIndex(idx);
+                      }}
+                      className={`h-2.5 rounded-full transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'w-8 bg-sky-400'
+                          : isMastered
+                          ? 'w-2.5 bg-emerald-400'
+                          : 'w-2.5 bg-slate-800 hover:bg-slate-700'
+                      }`}
+                      title={`${idx + 1}. Kelime: ${turn.targetWord}`}
+                    />
+                  );
+                })}
+              </div>
+
+              <div className="max-w-xl mx-auto">
+                <DictationChallenge
+                  key={`dictation-${learningCardIndex}-${currentLearnWord.targetWord}`}
+                  targetWord={currentLearnWord.targetWord}
+                  targetWordTr={currentLearnWord.targetWordTr}
+                  phoneticTr={currentLearnWord.targetWordPhonetic}
+                  easyPhoneticTr={currentLearnWord.easyPhoneticTr}
+                  onSuccess={() => {
+                    sounds.playLevelUp();
+                    sounds.playCoin();
+                    setSpellingSuccess(true);
+                    setMasteredLearnIndices((prev) => Array.from(new Set([...prev, learningCardIndex])));
+                    onRewardXP(25, 2);
+                  }}
+                />
+              </div>
+
+              {/* Stepper navigation */}
+              <div className="flex items-center justify-between pt-2 max-w-xl mx-auto">
+                <button
+                  disabled={learningCardIndex === 0}
+                  onClick={() => {
+                    sounds.playClick();
+                    setLearningCardIndex((prev) => Math.max(0, prev - 1));
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Önceki Kelime</span>
+                </button>
+
+                {learningCardIndex + 1 < safeTurns.length ? (
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setLearningCardIndex((prev) => prev + 1);
+                    }}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/30"
+                  >
+                    <span>Sıradaki Kelimeyi Dinle ({learningCardIndex + 2}/5)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartDialogue}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-600 hover:from-emerald-400 hover:to-sky-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Tüm Kelimeleri Dinledim! Canlı Konuşmaya Başla</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Sub-tab C: 30-Second Rapid Match Mini-Game */}
           {step1SubTab === 'MATCH_GAME' && (
             <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 shadow-2xl space-y-6 text-center animate-pop-in">
               <div className="space-y-1">
@@ -1459,17 +1592,32 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
                       <span>DOĞRU KELİMEYİ SEÇ (DİKKAT: YANLIŞ CEVAP POLİSİ ŞÜPHELENDİRİR!):</span>
-                      <button
-                        onClick={() => handleToggleVoiceInput(false)}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                          isListening
-                            ? 'bg-rose-600 border-rose-500 text-white animate-pulse'
-                            : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-sky-400'
-                        }`}
-                      >
-                        {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                        <span>{isListening ? 'Dinleniyor...' : '🎙️ Sesli Söyle (+30 XP)'}</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {onOpenDocs && (
+                          <button
+                            onClick={() => {
+                              sounds.playPaperRustle();
+                              onOpenDocs();
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 text-xs font-bold transition shadow-sm"
+                            title="Seyahat belgelerimi ve rezervasyonlarımı aç"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>🎒 Belgelerim</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleToggleVoiceInput(false)}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                            isListening
+                              ? 'bg-rose-600 border-rose-500 text-white animate-pulse'
+                              : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-sky-400'
+                          }`}
+                        >
+                          {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                          <span>{isListening ? 'Dinleniyor...' : '🎙️ Sesli Söyle (+30 XP)'}</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Animated Microphone Waveform */}

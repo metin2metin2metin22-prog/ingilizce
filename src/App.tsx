@@ -8,6 +8,9 @@ import { FlashcardsView } from './components/FlashcardsView';
 import { PassportModal } from './components/PassportModal';
 import { DeportedModal } from './components/DeportedModal';
 import { HowToPlayModal } from './components/HowToPlayModal';
+import { BritishSlangModal } from './components/BritishSlangModal';
+import { SurvivalDocumentsModal } from './components/SurvivalDocumentsModal';
+import { LuggageScannerModal } from './components/LuggageScannerModal';
 import { sounds } from './utils/audio';
 
 const STORAGE_KEY_PASSPORT = 'londondialogue_passport_v10';
@@ -57,6 +60,9 @@ export function App() {
   const [isPassportOpen, setIsPassportOpen] = useState<boolean>(false);
   const [isDeportedOpen, setIsDeportedOpen] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isDocumentsOpen, setIsDocumentsOpen] = useState<boolean>(false);
+  const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+  const [isSlangOpen, setIsSlangOpen] = useState<boolean>(false);
 
   // Active scenario
   const safeScenarios = scenarios.length > 0 ? scenarios : DIALOGUE_SCENARIOS;
@@ -166,6 +172,9 @@ export function App() {
         onChangeView={setActiveView}
         onOpenPassport={() => setIsPassportOpen(true)}
         onOpenGuide={() => setIsGuideOpen(true)}
+        onOpenDocs={() => setIsDocumentsOpen(true)}
+        onOpenScanner={() => setIsScannerOpen(true)}
+        onOpenSlang={() => setIsSlangOpen(true)}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pt-6 space-y-6">
@@ -192,6 +201,7 @@ export function App() {
             onDeported={handleDeported}
             onNextScenario={handleNextScenario}
             onRewardXP={handleRewardXP}
+            onOpenDocs={() => setIsDocumentsOpen(true)}
           />
         ) : (
           <FlashcardsView
@@ -219,6 +229,25 @@ export function App() {
       <HowToPlayModal
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+      />
+
+      {/* Survival Documents & Inventory Modal */}
+      <SurvivalDocumentsModal
+        isOpen={isDocumentsOpen}
+        onClose={() => setIsDocumentsOpen(false)}
+      />
+
+      {/* Airport X-Ray Security Scanner Mini-Game Modal */}
+      <LuggageScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onRewardXP={handleRewardXP}
+      />
+
+      {/* British Slang & Idioms Modal */}
+      <BritishSlangModal
+        isOpen={isSlangOpen}
+        onClose={() => setIsSlangOpen(false)}
       />
 
       {/* Footer Info */}
