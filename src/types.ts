@@ -16,10 +16,14 @@ export interface DialogueTurn {
   targetWord: string;
   targetWordTr: string;
   targetWordPhonetic: string;
+  easyPhoneticTr?: string;       // e.g. "[ pör-pıs ]"
   partOfSpeech?: string;
   mnemonic: string;
   grammarPattern?: string;       // e.g. "The purpose of [X] is [Y]"
   grammarExplanation?: string;   // e.g. "Bir ziyaretin ya da eylemin amacını resmi ve net belirtirken 'The purpose of ... is ...' kalıbı kullanılır."
+  collocations?: string[];       // e.g. ["on purpose (kasıtlı olarak)", "purpose of visit (ziyaret amacı)"]
+  synonyms?: string[];           // e.g. ["aim", "goal", "objective"]
+  londonSurvivalTip?: string;    // e.g. "İngiltere sınır polisine asla espri yapmayın; 'Nothing to declare' en güvenli cümledir."
   playerPromptTr: string;        // "Memura seyahat amacının turizm olduğunu söylemek için boşluğu doldur"
   sentenceWithBlank: string;    // "The [ _____ ] of my visit is tourism and sightseeing."
   sentenceFilled: string;       // "The purpose of my visit is tourism and sightseeing."

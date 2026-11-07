@@ -105,6 +105,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const [blitzScore, setBlitzScore] = useState<number>(0);
   const [blitzOptions, setBlitzOptions] = useState<string[]>([]);
   const [blitzWrongNotice, setBlitzWrongNotice] = useState<string | null>(null);
+  const [isStampedByUser, setIsStampedByUser] = useState<boolean>(false);
 
   const safeTurns = scenario?.turns || [];
   const currentTurn: DialogueTurn | undefined = safeTurns[currentTurnIndex];
@@ -143,6 +144,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
     setComboCount(0);
     setMatchedPairs([]);
     setOfficerLiveReaction(null);
+    setIsStampedByUser(false);
   }, [scenario]);
 
   // Adrenaline Timer loop
@@ -911,7 +913,14 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                         </button>
                       </div>
                     </div>
-                    <p className="text-slate-400 font-mono text-xs">{currentLearnWord.targetWordPhonetic}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-slate-400 font-mono text-xs">{currentLearnWord.targetWordPhonetic}</p>
+                      {currentLearnWord.easyPhoneticTr && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 font-bold text-[11px] border border-amber-500/30">
+                          {currentLearnWord.easyPhoneticTr}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Meaning */}
@@ -921,7 +930,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                   </div>
 
                   {/* Memory Mnemonic Clue */}
-                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left text-xs flex items-start gap-2.5">
+                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left text-xs flex items-start gap-2.5">
                     <Lightbulb className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-amber-300">💡 Hafıza Şifresi:</span>
@@ -929,9 +938,34 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                     </div>
                   </div>
 
+                  {/* Collocations & Synonyms */}
+                  {currentLearnWord.collocations && currentLearnWord.collocations.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-left text-xs space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">🔗 Birlikte Kullanılan Kalıplar (Collocations):</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentLearnWord.collocations.map((col, cIdx) => (
+                          <span key={cIdx} className="px-2 py-0.5 rounded-lg bg-slate-950 text-slate-200 border border-slate-800 text-[11px]">
+                            {col}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* London Survival Rule / Insider Culture Tip */}
+                  {currentLearnWord.londonSurvivalTip && (
+                    <div className="p-3 rounded-2xl bg-rose-950/20 border border-rose-500/30 text-left text-xs flex items-start gap-2">
+                      <Shield className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-rose-300">🇬🇧 Londra Hayatta Kalma Taktik İpucu:</span>
+                        <p className="text-slate-200 mt-0.5 leading-relaxed">{currentLearnWord.londonSurvivalTip}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Grammar Pattern */}
                   {currentLearnWord.grammarPattern && (
-                    <div className="p-3.5 rounded-2xl bg-sky-950/40 border border-sky-800/40 text-left text-xs space-y-1">
+                    <div className="p-3 rounded-2xl bg-sky-950/40 border border-sky-800/40 text-left text-xs space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black text-sky-400 uppercase tracking-wider">
                           🧠 Cümle Kalıbı Formülü:
@@ -1609,52 +1643,95 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
       {mode === 'COMPLETED' && (
         <div className="flex-1 p-6 sm:p-10 flex flex-col items-center justify-center space-y-6 text-center animate-pop-in">
           
-          <div className="inline-block p-4 sm:p-6 rounded-3xl border-4 border-emerald-500 bg-emerald-950/40 shadow-2xl shadow-emerald-500/30 transform -rotate-2 animate-bounce">
-            <div className="border-2 border-dashed border-emerald-400/80 px-8 py-4 rounded-2xl text-center space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
-                UK IMMIGRATION & ENTRY PROTOCOL
-              </span>
-              <h3 className="text-3xl sm:text-4xl font-black text-emerald-300 font-heading tracking-wider">
-                ✓ APPROVED • %100 CLEARANCE
-              </h3>
-              <p className="text-xs font-mono font-bold text-emerald-400/90">
-                DIALOGUE & VOCABULARY MASTERED
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-1 max-w-md">
-            <h4 className="text-2xl font-black text-white font-heading">
-              Tebrikler! Vizen Onaylandı 🎉
-            </h4>
-            <p className="text-xs text-slate-300 italic">
-              "{scenario.npcName} hem konuşmanı hem de 5 kelimeyi ezberlediğini onayladı ve geçiş vizesini vurdu!"
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md w-full">
-            <span className="text-xs font-bold text-emerald-400">
-              Hafızana Kilitlenen 5 Kelime:
-            </span>
-            <div className="flex flex-wrap justify-center gap-2 mt-2">
-              {safeTurns.map((t) => (
-                <span key={t.id} className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold">
-                  ✓ {t.targetWord} ({t.targetWordTr})
+          {!isStampedByUser ? (
+            <div className="space-y-6 max-w-md mx-auto">
+              <div className="space-y-2">
+                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-xs font-black uppercase">
+                  ✓ %100 CLEARANCE VERİLDİ
                 </span>
-              ))}
-            </div>
-          </div>
+                <h3 className="text-3xl font-black text-white font-heading">
+                  Memur Smith Damgayı Masaya Bıraktı!
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Sorulan tüm soruları ve 5 hayati kelimeyi ezberledin. Giriş vizesini pasaportuna bizzat sen vur!
+                </p>
+              </div>
 
-          <button
-            onClick={() => {
-              sounds.playAirportChime();
-              onNextScenario();
-            }}
-            className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 transition-all cursor-pointer active:scale-95 flex items-center gap-2"
-          >
-            <span>Sıradaki Londra Mekanına İlerle</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+              <button
+                onClick={() => {
+                  sounds.playPassportStamp();
+                  sounds.playLevelUp();
+                  setIsStampedByUser(true);
+                  confetti({
+                    particleCount: 160,
+                    spread: 110,
+                    origin: { y: 0.6 },
+                  });
+                }}
+                className="group p-8 rounded-3xl bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-slate-950 font-black shadow-2xl shadow-emerald-500/50 transition-all cursor-pointer transform hover:scale-105 active:scale-90 border-4 border-emerald-300 animate-pulse w-full"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-6xl group-hover:rotate-12 transition-transform">🖃</span>
+                  <span className="text-sm font-black uppercase tracking-wider text-slate-950">
+                    PASAPORTA DAMGAYI BİZZAT VUR! (TIKLA)
+                  </span>
+                  <span className="text-xs text-emerald-950 font-bold bg-emerald-300/60 px-3 py-0.5 rounded-full">
+                    +£70 Giriş Vizesi Ödülü & 100 XP
+                  </span>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="inline-block p-4 sm:p-6 rounded-3xl border-4 border-emerald-500 bg-emerald-950/40 shadow-2xl shadow-emerald-500/30 transform -rotate-2 animate-bounce">
+                <div className="border-2 border-dashed border-emerald-400/80 px-8 py-4 rounded-2xl text-center space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                    UK IMMIGRATION & ENTRY PROTOCOL
+                  </span>
+                  <h3 className="text-3xl sm:text-4xl font-black text-emerald-300 font-heading tracking-wider">
+                    ✓ APPROVED • %100 CLEARANCE
+                  </h3>
+                  <p className="text-xs font-mono font-bold text-emerald-400/90">
+                    DIALOGUE & VOCABULARY MASTERED
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1 max-w-md">
+                <h4 className="text-2xl font-black text-white font-heading">
+                  Tebrikler! Vizen Onaylandı 🎉
+                </h4>
+                <p className="text-xs text-slate-300 italic">
+                  "{scenario.npcName} hem konuşmanı hem de 5 kelimeyi ezberlediğini onayladı ve geçiş vizesini vurdu!"
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md w-full">
+                <span className="text-xs font-bold text-emerald-400">
+                  Hafızana Kilitlenen 5 Kelime:
+                </span>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  {safeTurns.map((t) => (
+                    <span key={t.id} className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold">
+                      ✓ {t.targetWord} ({t.targetWordTr})
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  sounds.playAirportChime();
+                  onNextScenario();
+                }}
+                className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 transition-all cursor-pointer active:scale-95 flex items-center gap-2"
+              >
+                <span>Sıradaki Londra Mekanına İlerle</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
         </div>
       )}
 
