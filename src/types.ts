@@ -1,11 +1,44 @@
 export type Level = 'A1' | 'A2' | 'B1' | 'B2';
 
+export interface AbsurdComeback {
+  textEn: string;
+  textTr: string;
+  isRecovery: boolean;
+  officerOutcomeEn: string;
+  officerOutcomeTr: string;
+  penaltyPounds?: number;
+}
+
+export interface AbsurdFollowUp {
+  officerSpeechEn: string;
+  officerSpeechTr: string;
+  officerReactionBadge: string;
+  absurdPromptTr: string;
+  comebacks: AbsurdComeback[];
+}
+
 export interface TurnOption {
   word: string;
   tr: string;
   reaction: string;
   isCorrect: boolean;
   finePounds?: number;
+  absurdFollowUp?: AbsurdFollowUp;
+}
+
+export interface TrainingCampState {
+  mistakeWord: string;
+  mistakeWordTr: string;
+  correctWord: string;
+  correctWordTr: string;
+  easyPhoneticTr?: string;
+  grammarTipTr: string;
+  scenarioTitle: string;
+  officerSpeechEn: string;
+  officerSpeechTr: string;
+  sentenceWithBlank: string;
+  sentenceFilled: string;
+  sentenceTokens: string[];
 }
 
 export interface DialogueTurn {

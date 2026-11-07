@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { DialogueScenario, DialogueTurn, TurnOption } from '../types';
+import { DialogueScenario, DialogueTurn, TurnOption, AbsurdFollowUp, TrainingCampState } from '../types';
 import { 
   Volume2, Sparkles, AlertTriangle, 
   Lightbulb, Stamp, ArrowRight, ArrowLeft, RotateCcw, 
   ShieldAlert, Award, BookOpen, GraduationCap, MessageSquare,
   Mic, MicOff, Headphones, Eye, CheckCircle2, Flame,
-  Timer, Zap, Shield, Plane, Banknote, HelpCircle, FileText
+  Timer, Zap, Shield, Plane, Banknote, HelpCircle, FileText, Dumbbell
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -14,6 +14,8 @@ import {
 } from '../utils/audio';
 import { InteractiveWordText } from './InteractiveWordText';
 import { DictationChallenge } from './DictationChallenge';
+import { AbsurdBranchCard } from './AbsurdBranchCard';
+import { TrainingCampModal } from './TrainingCampModal';
 
 interface InteractiveDialogueProps {
   scenario: DialogueScenario;
@@ -109,6 +111,11 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
   const [blitzOptions, setBlitzOptions] = useState<string[]>([]);
   const [blitzWrongNotice, setBlitzWrongNotice] = useState<string | null>(null);
   const [isStampedByUser, setIsStampedByUser] = useState<boolean>(false);
+
+  // Absurd Dialogue Branching & Remediation Training Camp
+  const [activeAbsurdFollowUp, setActiveAbsurdFollowUp] = useState<AbsurdFollowUp | null>(null);
+  const [activeTrainingCamp, setActiveTrainingCamp] = useState<TrainingCampState | null>(null);
+  const [isTrainingOpen, setIsTrainingOpen] = useState<boolean>(false);
 
   const safeTurns = scenario?.turns || [];
   const currentTurn: DialogueTurn | undefined = safeTurns[currentTurnIndex];
@@ -491,7 +498,7 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
         }, 1300);
       }
     } else {
-      // Wrong word: Suspicion surge + Hilarious Officer Reaction!
+      // Wrong word: Absurd Escalation + Suspicion surge + Hilarious Officer Reaction!
       sounds.playWarning();
       sounds.playHeartbeat();
       setIsShaking(true);
@@ -516,9 +523,56 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
       );
       onLoseWarning();
 
+      // Trigger Absurd Dialogue Branch
+      const absurdData: AbsurdFollowUp = optionDetail?.absurdFollowUp || {
+        officerSpeechEn: `Wait... Did you seriously just say '${wordChoice}'?! Are you trying to test my patience at Border Control?!`,
+        officerSpeechTr: `Bekleyin... Az önce '${wordChoice}' mi dediniz?! Pasaport masasında sabrımı mı sınıyorsunuz?!`,
+        officerReactionBadge: "🚨 ABSÜRT CEVAP ALARMI!",
+        absurdPromptTr: "Memur kaşlarını çattı! Durumu nasıl toparlayacaksın?",
+        comebacks: [
+          {
+            textEn: `I am so sorry Officer! My vocabulary slipped! I meant '${currentTurn.targetWord}'!`,
+            textTr: `Çok özür dilerim memur bey! Dilim sürçtü! '${currentTurn.targetWord}' (${currentTurn.targetWordTr}) demek istedim!`,
+            isRecovery: true,
+            officerOutcomeEn: "Alright, don't confuse your words. Try again carefully.",
+            officerOutcomeTr: "Pekala, kelimelerinizi karıştırmayın. Dikkatle tekrar deneyin.",
+          },
+          {
+            textEn: `Yes, I said '${wordChoice}', what are you going to do about it?`,
+            textTr: `Evet, '${wordChoice}' dedim, buna ne yapabilirsiniz ki?`,
+            isRecovery: false,
+            officerOutcomeEn: "To the training camp immediately!",
+            officerOutcomeTr: "Derhal antrenman kampına!",
+          },
+        ],
+      };
+
+      // Prepare Training Camp State
+      const campState: TrainingCampState = {
+        mistakeWord: wordChoice,
+        mistakeWordTr: optionDetail?.tr || 'Hatalı Kelime',
+        correctWord: currentTurn.targetWord,
+        correctWordTr: currentTurn.targetWordTr,
+        easyPhoneticTr: currentTurn.easyPhoneticTr,
+        grammarTipTr: currentTurn.grammarExplanation || currentTurn.mnemonic,
+        scenarioTitle: scenario.location,
+        officerSpeechEn: absurdData.officerSpeechEn,
+        officerSpeechTr: absurdData.officerSpeechTr,
+        sentenceWithBlank: currentTurn.sentenceWithBlank,
+        sentenceFilled: currentTurn.sentenceFilled,
+        sentenceTokens: currentTurn.sentenceTokens || currentTurn.sentenceFilled.split(' '),
+      };
+
+      setActiveTrainingCamp(campState);
+      setActiveAbsurdFollowUp(absurdData);
+      sounds.playAlarmSiren();
+      speakEnglish(absurdData.officerSpeechEn);
+
       if (warningsLeft <= 1 || nextSuspicion >= 100) {
         setOfficerMood('ANGRY');
-        setTimeout(() => onDeported(), 900);
+        setTimeout(() => {
+          setIsTrainingOpen(true);
+        }, 1200);
       }
     }
   };
@@ -1561,10 +1615,35 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                   <button
                     onClick={() => {
                       sounds.playClick();
+                      const campState: TrainingCampState = {
+                        mistakeWord: selectedWord || 'Henüz cevap seçilmedi',
+                        mistakeWordTr: 'Pratik Modu',
+                        correctWord: currentTurn.targetWord,
+                        correctWordTr: currentTurn.targetWordTr,
+                        easyPhoneticTr: currentTurn.easyPhoneticTr,
+                        grammarTipTr: currentTurn.grammarExplanation || currentTurn.mnemonic,
+                        scenarioTitle: scenario.location,
+                        officerSpeechEn: currentTurn.npcMessageEn,
+                        officerSpeechTr: currentTurn.npcMessageTr,
+                        sentenceWithBlank: currentTurn.sentenceWithBlank,
+                        sentenceFilled: currentTurn.sentenceFilled,
+                        sentenceTokens: currentTurn.sentenceTokens || currentTurn.sentenceFilled.split(' '),
+                      };
+                      setActiveTrainingCamp(campState);
+                      setIsTrainingOpen(true);
+                    }}
+                    className="text-amber-400 hover:text-amber-300 underline text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Dumbbell className="w-3.5 h-3.5" />
+                    <span>🏋️‍♂️ Antrenman Odası</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
                       setMode('LEARN');
                       setLearningCardIndex(currentTurnIndex);
                     }}
-                    className="text-amber-400 hover:text-amber-300 underline text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                    className="text-sky-400 hover:text-sky-300 underline text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     <span>Ders Kartı</span>
@@ -1572,8 +1651,27 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                 </div>
               </div>
 
-              {/* MODE 1: Fill the blank with Dramatic Multi-Choice Options */}
-              {dialogueInputMode === 'FILL_BLANK' && (
+              {/* Absurd Escalation Branch Card if user made a blunder */}
+              {activeAbsurdFollowUp ? (
+                <AbsurdBranchCard
+                  absurdData={activeAbsurdFollowUp}
+                  onRecover={() => {
+                    sounds.playCorrect();
+                    setActiveAbsurdFollowUp(null);
+                    setWrongWordFeedback(null);
+                    setSelectedWord(null);
+                    setOfficerLiveReaction('Memur derin bir nefes aldı: "Pekala, bu soruyu dikkatle baştan yanıtlayın."');
+                  }}
+                  onGoToTraining={() => {
+                    sounds.playAlarmSiren();
+                    setActiveAbsurdFollowUp(null);
+                    setIsTrainingOpen(true);
+                  }}
+                />
+              ) : (
+                <>
+                  {/* MODE 1: Fill the blank with Dramatic Multi-Choice Options */}
+                  {dialogueInputMode === 'FILL_BLANK' && (
                 <>
                   <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-1">
                     <p className="text-base sm:text-lg font-bold text-white leading-relaxed">
@@ -1718,6 +1816,8 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
                     ))}
                   </div>
                 </div>
+              )}
+                </>
               )}
 
             </div>
@@ -1882,6 +1982,22 @@ export const InteractiveDialogue: React.FC<InteractiveDialogueProps> = ({
 
         </div>
       )}
+
+      {/* Remediation Training Camp & Recovery Modal */}
+      <TrainingCampModal
+        isOpen={isTrainingOpen}
+        trainingData={activeTrainingCamp}
+        onCompleteTraining={() => {
+          setIsTrainingOpen(false);
+          setActiveAbsurdFollowUp(null);
+          setWrongWordFeedback(null);
+          setSelectedWord(null);
+          setSuspicionPercent(10);
+          setOfficerMood('NEUTRAL');
+          setOfficerLiveReaction('Memur takdirle başını salladı: "Antrenman testini geçtiniz. Şimdi bu soruyu doğru yanıtlayın!"');
+          onRewardXP(50, 5);
+        }}
+      />
 
     </div>
   );
